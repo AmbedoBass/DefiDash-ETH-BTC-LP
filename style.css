@@ -203,7 +203,7 @@ footer p {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    min-height: 0; /* Important for flex children with overflow */
+    min-height: 0;
 }
 
 .section-header {
@@ -487,10 +487,10 @@ footer p {
 }
 
 /* ============================================
-   RESPONSIVE - TABLET (Single Column)
+   RESPONSIVE - TABLET (2x2 until 900px)
    ============================================ */
 
-@media (max-width: 1200px) {
+@media (max-width: 900px) {
     #dashboard-content {
         grid-template-columns: 1fr;
         grid-template-rows: auto;
@@ -499,8 +499,8 @@ footer p {
     }
     
     .pair-section {
-        min-height: 350px;
-        max-height: 450px;
+        min-height: 300px;
+        max-height: 400px;
     }
 }
 
@@ -508,7 +508,7 @@ footer p {
    RESPONSIVE - MOBILE
    ============================================ */
 
-@media (max-width: 768px) {
+@media (max-width: 600px) {
     header {
         padding: 1rem;
     }
@@ -535,8 +535,8 @@ footer p {
     }
     
     .pair-section {
-        min-height: 280px;
-        max-height: 400px;
+        min-height: 250px;
+        max-height: 350px;
     }
     
     .section-header h2 {
