@@ -24,8 +24,6 @@
         </div>
 
         <section id="dashboard-content">
-            <!-- Row 1: Stablecoin Pairs -->
-            
             <!-- BTC / Stablecoin Section -->
             <div class="pair-section" id="btc-stable-section">
                 <div class="section-header" data-section="btc-stable">
@@ -42,9 +40,11 @@
                                 <tr>
                                     <th data-sort="chain" data-section="btc-stable">Chain</th>
                                     <th data-sort="name" data-section="btc-stable">Pool</th>
+                                    <th data-sort="feeTier" data-section="btc-stable">Fee</th>
                                     <th data-sort="liquidityUsd" data-section="btc-stable">Liquidity</th>
-                                    <th data-sort="volumeUsd24h" data-section="btc-stable">Volume</th>
+                                    <th data-sort="volumeUsd24h" data-section="btc-stable">Volume 24h</th>
                                     <th data-sort="score" data-section="btc-stable">Turnover</th>
+                                    <th data-sort="apr" data-section="btc-stable">Est. APR</th>
                                 </tr>
                             </thead>
                             <tbody id="btc-stable-table-body"></tbody>
@@ -72,9 +72,11 @@
                                 <tr>
                                     <th data-sort="chain" data-section="eth-stable">Chain</th>
                                     <th data-sort="name" data-section="eth-stable">Pool</th>
+                                    <th data-sort="feeTier" data-section="eth-stable">Fee</th>
                                     <th data-sort="liquidityUsd" data-section="eth-stable">Liquidity</th>
-                                    <th data-sort="volumeUsd24h" data-section="eth-stable">Volume</th>
+                                    <th data-sort="volumeUsd24h" data-section="eth-stable">Volume 24h</th>
                                     <th data-sort="score" data-section="eth-stable">Turnover</th>
+                                    <th data-sort="apr" data-section="eth-stable">Est. APR</th>
                                 </tr>
                             </thead>
                             <tbody id="eth-stable-table-body"></tbody>
@@ -85,8 +87,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Row 2: Cross-Asset Pairs -->
 
             <!-- BTC / ETH Section -->
             <div class="pair-section" id="btc-eth-section">
@@ -104,9 +104,11 @@
                                 <tr>
                                     <th data-sort="chain" data-section="btc-eth">Chain</th>
                                     <th data-sort="name" data-section="btc-eth">Pool</th>
+                                    <th data-sort="feeTier" data-section="btc-eth">Fee</th>
                                     <th data-sort="liquidityUsd" data-section="btc-eth">Liquidity</th>
-                                    <th data-sort="volumeUsd24h" data-section="btc-eth">Volume</th>
+                                    <th data-sort="volumeUsd24h" data-section="btc-eth">Volume 24h</th>
                                     <th data-sort="score" data-section="btc-eth">Turnover</th>
+                                    <th data-sort="apr" data-section="btc-eth">Est. APR</th>
                                 </tr>
                             </thead>
                             <tbody id="btc-eth-table-body"></tbody>
@@ -118,7 +120,7 @@
                 </div>
             </div>
 
-            <!-- Wrapped Assets Section (BTC/BTC and ETH/ETH variants) -->
+            <!-- Wrapped Assets Section -->
             <div class="pair-section" id="wrapped-section">
                 <div class="section-header" data-section="wrapped">
                     <h2>
@@ -134,9 +136,11 @@
                                 <tr>
                                     <th data-sort="chain" data-section="wrapped">Chain</th>
                                     <th data-sort="name" data-section="wrapped">Pool</th>
+                                    <th data-sort="feeTier" data-section="wrapped">Fee</th>
                                     <th data-sort="liquidityUsd" data-section="wrapped">Liquidity</th>
-                                    <th data-sort="volumeUsd24h" data-section="wrapped">Volume</th>
+                                    <th data-sort="volumeUsd24h" data-section="wrapped">Volume 24h</th>
                                     <th data-sort="score" data-section="wrapped">Turnover</th>
+                                    <th data-sort="apr" data-section="wrapped">Est. APR</th>
                                 </tr>
                             </thead>
                             <tbody id="wrapped-table-body"></tbody>
@@ -151,7 +155,7 @@
     </main>
 
     <footer>
-        <p>Data sourced from public APIs. May be subject to rate limits or inaccuracies. Always DYOR.</p>
+        <p>Data sourced from public APIs. APR estimates are based on 24h volume and fees, actual returns may vary. Always DYOR.</p>
     </footer>
 
     <script src="config.js"></script>
