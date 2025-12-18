@@ -32,23 +32,17 @@ function delay(ms) {
  * Returns { colorClass, percentage, hue }
  */
 function getLiquidityIndicator(liquidityUsd) {
-    // Logarithmic scale parameters
-    const minLiq = 50000;       // $50k - minimum threshold
-    const maxLiq = 100000000;   // $100M - considered "max" for scaling
+    const minLiq = 50000;
+    const maxLiq = 100000000;
     
-    // Clamp and calculate log position
     const clampedLiq = Math.max(minLiq, Math.min(liquidityUsd, maxLiq));
     const logMin = Math.log10(minLiq);
     const logMax = Math.log10(maxLiq);
     const logVal = Math.log10(clampedLiq);
     
-    // Normalize to 0-1 range
     const normalized = (logVal - logMin) / (logMax - logMin);
-    
-    // Map to hue: 0 (red) -> 240 (blue)
     const hue = Math.round(normalized * 240);
     
-    // Determine color class for text
     let colorClass;
     if (normalized < 0.2) {
         colorClass = 'liquidity-low';
@@ -62,7 +56,6 @@ function getLiquidityIndicator(liquidityUsd) {
         colorClass = 'liquidity-high';
     }
     
-    // Percentage for bar width (capped at 100%)
     const percentage = Math.min(normalized * 100, 100);
     
     return { colorClass, percentage, hue };
@@ -232,7 +225,7 @@ async function fetchAllPoolData() {
         await delay(200);
     }
 
-    const tokenSearches = ['WBTC', 'cbBTC', 'tBTC', 'WETH', 'stETH', 'wstETH'];
+    const tokenSearches = ['WBTC', 'cbBTC', 'tBTC', 'WETH', 'stETH', 'wstETH', 'rETH', 'cbETH'];
     for (const token of tokenSearches) {
         try {
             const pools = await fetchGeckoTerminalTokenSearch(token);
@@ -293,13 +286,40 @@ function resolveAssetClass(symbol) {
  * Determines the pair type for a pool based on its assets.
  */
 function determinePairType(baseAsset, quoteAsset) {
+    // Same asset class pairs (wrapped variants)
+    if (baseAsset === 'BTC' && quoteAsset === 'BTC') return 'wrapped';
+    if (baseAsset === 'ETH' && quoteAsset === 'ETH') return 'wrapped';
+    
+    // Cross-asset pairs
     if (baseAsset === 'BTC' && quoteAsset === 'STABLE') return 'btc-stable';
     if (baseAsset === 'ETH' && quoteAsset === 'STABLE') return 'eth-stable';
     if (baseAsset === 'BTC' && quoteAsset === 'ETH') return 'btc-eth';
     if (baseAsset === 'ETH' && quoteAsset === 'BTC') return 'btc-eth';
+    
+    // Handle reversed pairs
     if (baseAsset === 'STABLE' && quoteAsset === 'BTC') return 'btc-stable';
     if (baseAsset === 'STABLE' && quoteAsset === 'ETH') return 'eth-stable';
+    
     return null;
+}
+
+/**
+ * Checks if two token symbols are different variants of the same asset.
+ */
+function areDifferentVariants(symbol1, symbol2, assetClass) {
+    if (!symbol1 || !symbol2 || !assetClass) return false;
+    const lower1 = symbol1.toLowerCase();
+    const lower2 = symbol2.toLowerCase();
+    
+    if (lower1 === lower2) return false;
+    
+    const variants = CONFIG.ASSET_CLASSES[assetClass];
+    if (!variants) return false;
+    
+    const match1 = variants.some(v => lower1.includes(v));
+    const match2 = variants.some(v => lower2.includes(v));
+    
+    return match1 && match2;
 }
 
 /**
@@ -313,13 +333,20 @@ function normalizeGeckoTerminalPool(pool) {
     let baseAssetClass = resolveAssetClass(baseSymbol);
     let quoteAssetClass = resolveAssetClass(quoteSymbol);
 
-    if (quoteAssetClass === 'BTC' || (quoteAssetClass === 'ETH' && baseAssetClass === 'STABLE')) {
-        [baseAssetClass, quoteAssetClass] = [quoteAssetClass, baseAssetClass];
+    const isWrappedPair = (baseAssetClass === quoteAssetClass) && 
+                          (baseAssetClass === 'BTC' || baseAssetClass === 'ETH') &&
+                          areDifferentVariants(baseSymbol, quoteSymbol, baseAssetClass);
+
+    if (!isWrappedPair) {
+        if (quoteAssetClass === 'BTC' || (quoteAssetClass === 'ETH' && baseAssetClass === 'STABLE')) {
+            [baseAssetClass, quoteAssetClass] = [quoteAssetClass, baseAssetClass];
+        }
     }
 
     const pairType = determinePairType(baseAssetClass, quoteAssetClass);
     if (!pairType) return null;
-    if (baseAssetClass === quoteAssetClass) return null;
+
+    if (!isWrappedPair && baseAssetClass === quoteAssetClass) return null;
 
     let chainName = pool._chain;
     if (!chainName || chainName === 'unknown') {
@@ -359,13 +386,20 @@ function normalizeDexScreenerPool(pool) {
     let baseAssetClass = resolveAssetClass(baseSymbol);
     let quoteAssetClass = resolveAssetClass(quoteSymbol);
 
-    if (quoteAssetClass === 'BTC' || (quoteAssetClass === 'ETH' && baseAssetClass === 'STABLE')) {
-        [baseAssetClass, quoteAssetClass] = [quoteAssetClass, baseAssetClass];
+    const isWrappedPair = (baseAssetClass === quoteAssetClass) && 
+                          (baseAssetClass === 'BTC' || baseAssetClass === 'ETH') &&
+                          areDifferentVariants(baseSymbol, quoteSymbol, baseAssetClass);
+
+    if (!isWrappedPair) {
+        if (quoteAssetClass === 'BTC' || (quoteAssetClass === 'ETH' && baseAssetClass === 'STABLE')) {
+            [baseAssetClass, quoteAssetClass] = [quoteAssetClass, baseAssetClass];
+        }
     }
 
     const pairType = determinePairType(baseAssetClass, quoteAssetClass);
     if (!pairType) return null;
-    if (baseAssetClass === quoteAssetClass) return null;
+
+    if (!isWrappedPair && baseAssetClass === quoteAssetClass) return null;
 
     const chainName = CONFIG.CHAIN_ID_MAP[(pool.chainId || '').toLowerCase()] || pool.chainId || 'unknown';
 
@@ -474,7 +508,8 @@ function categorizePools(pools) {
     const categories = {
         'btc-stable': [],
         'eth-stable': [],
-        'btc-eth': []
+        'btc-eth': [],
+        'wrapped': []
     };
 
     for (const pool of pools) {
@@ -537,6 +572,11 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
     pools.forEach(pool => {
         const row = document.createElement('tr');
 
+        // Chain
+        const chainCell = document.createElement('td');
+        chainCell.textContent = pool.chain;
+        row.appendChild(chainCell);
+
         // Pool Name & Link
         const nameCell = document.createElement('td');
         if (pool.poolUrl) {
@@ -552,30 +592,18 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
         }
         row.appendChild(nameCell);
 
-        // Chain
-        const chainCell = document.createElement('td');
-        chainCell.textContent = pool.chain;
-        row.appendChild(chainCell);
-
-        // Protocol
-        const protocolCell = document.createElement('td');
-        protocolCell.textContent = pool.protocol;
-        row.appendChild(protocolCell);
-
         // Liquidity with color indicator
         const liquidityCell = document.createElement('td');
         liquidityCell.className = 'liquidity-cell';
         
         const liqIndicator = getLiquidityIndicator(pool.liquidityUsd);
         
-        // Background bar
         const bar = document.createElement('div');
         bar.className = 'liquidity-bar';
         bar.style.width = `${liqIndicator.percentage}%`;
         bar.style.backgroundColor = `hsl(${liqIndicator.hue}, 70%, 50%)`;
         liquidityCell.appendChild(bar);
         
-        // Value text
         const valueSpan = document.createElement('span');
         valueSpan.className = `liquidity-value ${liqIndicator.colorClass}`;
         valueSpan.textContent = formatUsdCompact(pool.liquidityUsd);
@@ -592,12 +620,6 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
         const scoreCell = document.createElement('td');
         scoreCell.textContent = pool.score.toFixed(3);
         row.appendChild(scoreCell);
-
-        // Source
-        const sourceCell = document.createElement('td');
-        sourceCell.className = 'source-badge';
-        sourceCell.textContent = pool.source;
-        row.appendChild(sourceCell);
 
         tableBody.appendChild(row);
     });
@@ -626,6 +648,13 @@ function renderAllSections(categorizedPools) {
         'btc-eth-table-body',
         'btc-eth-no-data',
         'btc-eth-count'
+    );
+
+    renderPoolsToTable(
+        categorizedPools['wrapped'],
+        'wrapped-table-body',
+        'wrapped-no-data',
+        'wrapped-count'
     );
 }
 
@@ -710,7 +739,6 @@ function sortSectionByKey(sectionId, sortKey, clickedHeader) {
         switch (sortKey) {
             case 'name':
             case 'chain':
-            case 'protocol':
                 aVal = (a[sortKey] || '').toLowerCase();
                 bVal = (b[sortKey] || '').toLowerCase();
                 return newOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
@@ -763,14 +791,14 @@ async function mainApp() {
         renderAllSections(categorizedPools);
 
         const totalPools = Object.values(categorizedPools).reduce((sum, arr) => sum + arr.length, 0);
-        updateStatusBar(`Loaded ${totalPools} pools across 3 categories.`, 'success');
+        updateStatusBar(`Loaded ${totalPools} pools across 4 categories.`, 'success');
         updateLastUpdatedTime();
 
     } catch (error) {
         console.error('Dashboard application failed:', error);
         logMessage(`An error occurred: ${error.message}`, 'error');
         updateStatusBar(`Error: ${error.message}`, 'error');
-        renderAllSections({ 'btc-stable': [], 'eth-stable': [], 'btc-eth': [] });
+        renderAllSections({ 'btc-stable': [], 'eth-stable': [], 'btc-eth': [], 'wrapped': [] });
     } finally {
         toggleLoader(false);
         if (refreshBtn) refreshBtn.disabled = false;
