@@ -26,6 +26,48 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/**
+ * Calculates liquidity color and percentage for visual indicator.
+ * Uses logarithmic scale: $50k (min) -> $100M+ (max)
+ * Returns { colorClass, percentage, hue }
+ */
+function getLiquidityIndicator(liquidityUsd) {
+    // Logarithmic scale parameters
+    const minLiq = 50000;       // $50k - minimum threshold
+    const maxLiq = 100000000;   // $100M - considered "max" for scaling
+    
+    // Clamp and calculate log position
+    const clampedLiq = Math.max(minLiq, Math.min(liquidityUsd, maxLiq));
+    const logMin = Math.log10(minLiq);
+    const logMax = Math.log10(maxLiq);
+    const logVal = Math.log10(clampedLiq);
+    
+    // Normalize to 0-1 range
+    const normalized = (logVal - logMin) / (logMax - logMin);
+    
+    // Map to hue: 0 (red) -> 240 (blue)
+    const hue = Math.round(normalized * 240);
+    
+    // Determine color class for text
+    let colorClass;
+    if (normalized < 0.2) {
+        colorClass = 'liquidity-low';
+    } else if (normalized < 0.4) {
+        colorClass = 'liquidity-mid-low';
+    } else if (normalized < 0.6) {
+        colorClass = 'liquidity-mid';
+    } else if (normalized < 0.8) {
+        colorClass = 'liquidity-mid-high';
+    } else {
+        colorClass = 'liquidity-high';
+    }
+    
+    // Percentage for bar width (capped at 100%)
+    const percentage = Math.min(normalized * 100, 100);
+    
+    return { colorClass, percentage, hue };
+}
+
 // =================================================================
 // DATA FETCHING MODULE
 // =================================================================
@@ -89,14 +131,11 @@ async function fetchGeckoTerminalPoolsForChain(chainName) {
         
         if (data && data.data && Array.isArray(data.data) && data.data.length > 0) {
             allPools.push(...data.data);
-            
-            // If we got fewer than expected, no more pages
             if (data.data.length < 20) break;
         } else {
             break;
         }
 
-        // Rate limiting delay between pages
         if (page < maxPages) await delay(150);
     }
 
@@ -152,7 +191,6 @@ async function fetchDexScreenerPools() {
         
         if (data && data.pairs && Array.isArray(data.pairs)) {
             for (const pair of data.pairs) {
-                // Deduplicate by pair address
                 if (!seenPairs.has(pair.pairAddress)) {
                     seenPairs.add(pair.pairAddress);
                     allPools.push(pair);
@@ -160,7 +198,7 @@ async function fetchDexScreenerPools() {
             }
         }
 
-        await delay(100); // Rate limiting
+        await delay(100);
     }
 
     dataCache.set(cacheKey, allPools);
@@ -174,7 +212,6 @@ async function fetchDexScreenerPools() {
 async function fetchAllPoolData() {
     const allRawPools = [];
 
-    // 1. Fetch from GeckoTerminal for all chains
     logMessage('Fetching from GeckoTerminal...', 'info');
     const chainsToFetch = [...CONFIG.HIGH_CONFIDENCE_CHAINS, ...CONFIG.MEDIUM_CONFIDENCE_CHAINS];
 
@@ -195,7 +232,6 @@ async function fetchAllPoolData() {
         await delay(200);
     }
 
-    // 2. Also do token searches on GeckoTerminal for better coverage
     const tokenSearches = ['WBTC', 'cbBTC', 'tBTC', 'WETH', 'stETH', 'wstETH'];
     for (const token of tokenSearches) {
         try {
@@ -216,7 +252,6 @@ async function fetchAllPoolData() {
 
     logMessage(`GeckoTerminal total raw: ${allRawPools.length} pools`, 'info');
 
-    // 3. Fetch from DexScreener
     logMessage('Fetching from DexScreener...', 'info');
     try {
         const dsPools = await fetchDexScreenerPools();
@@ -261,8 +296,7 @@ function determinePairType(baseAsset, quoteAsset) {
     if (baseAsset === 'BTC' && quoteAsset === 'STABLE') return 'btc-stable';
     if (baseAsset === 'ETH' && quoteAsset === 'STABLE') return 'eth-stable';
     if (baseAsset === 'BTC' && quoteAsset === 'ETH') return 'btc-eth';
-    if (baseAsset === 'ETH' && quoteAsset === 'BTC') return 'btc-eth'; // ETH/BTC same as BTC/ETH
-    // Handle reversed pairs
+    if (baseAsset === 'ETH' && quoteAsset === 'BTC') return 'btc-eth';
     if (baseAsset === 'STABLE' && quoteAsset === 'BTC') return 'btc-stable';
     if (baseAsset === 'STABLE' && quoteAsset === 'ETH') return 'eth-stable';
     return null;
@@ -279,15 +313,12 @@ function normalizeGeckoTerminalPool(pool) {
     let baseAssetClass = resolveAssetClass(baseSymbol);
     let quoteAssetClass = resolveAssetClass(quoteSymbol);
 
-    // Swap if needed to normalize pair direction
     if (quoteAssetClass === 'BTC' || (quoteAssetClass === 'ETH' && baseAssetClass === 'STABLE')) {
         [baseAssetClass, quoteAssetClass] = [quoteAssetClass, baseAssetClass];
     }
 
     const pairType = determinePairType(baseAssetClass, quoteAssetClass);
     if (!pairType) return null;
-
-    // Prevent same-asset pairs
     if (baseAssetClass === quoteAssetClass) return null;
 
     let chainName = pool._chain;
@@ -328,14 +359,12 @@ function normalizeDexScreenerPool(pool) {
     let baseAssetClass = resolveAssetClass(baseSymbol);
     let quoteAssetClass = resolveAssetClass(quoteSymbol);
 
-    // Swap if needed to normalize pair direction
     if (quoteAssetClass === 'BTC' || (quoteAssetClass === 'ETH' && baseAssetClass === 'STABLE')) {
         [baseAssetClass, quoteAssetClass] = [quoteAssetClass, baseAssetClass];
     }
 
     const pairType = determinePairType(baseAssetClass, quoteAssetClass);
     if (!pairType) return null;
-
     if (baseAssetClass === quoteAssetClass) return null;
 
     const chainName = CONFIG.CHAIN_ID_MAP[(pool.chainId || '').toLowerCase()] || pool.chainId || 'unknown';
@@ -454,7 +483,6 @@ function categorizePools(pools) {
         }
     }
 
-    // Sort each category
     for (const key in categories) {
         categories[key] = scoreAndRankPools(categories[key]);
     }
@@ -465,6 +493,20 @@ function categorizePools(pools) {
 // =================================================================
 // UI RENDERING
 // =================================================================
+
+/**
+ * Formats USD value in compact form.
+ */
+function formatUsdCompact(value) {
+    if (value >= 1000000000) {
+        return '$' + (value / 1000000000).toFixed(2) + 'B';
+    } else if (value >= 1000000) {
+        return '$' + (value / 1000000).toFixed(2) + 'M';
+    } else if (value >= 1000) {
+        return '$' + (value / 1000).toFixed(1) + 'K';
+    }
+    return '$' + value.toFixed(0);
+}
 
 /**
  * Renders pools into a specific table body.
@@ -497,7 +539,6 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
 
         // Pool Name & Link
         const nameCell = document.createElement('td');
-        nameCell.className = 'pool-name-cell';
         if (pool.poolUrl) {
             const link = document.createElement('a');
             link.href = pool.poolUrl;
@@ -521,29 +562,30 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
         protocolCell.textContent = pool.protocol;
         row.appendChild(protocolCell);
 
-        // Assets
-        const assetsCell = document.createElement('td');
-        const baseBadge = document.createElement('span');
-        baseBadge.className = `asset-badge ${pool.baseAsset.toLowerCase()}`;
-        baseBadge.textContent = pool.baseAsset;
-        assetsCell.appendChild(baseBadge);
-
-        if (pool.quoteAsset) {
-            const quoteBadge = document.createElement('span');
-            quoteBadge.className = `asset-badge ${pool.quoteAsset.toLowerCase()}`;
-            quoteBadge.textContent = pool.quoteAsset;
-            assetsCell.appendChild(quoteBadge);
-        }
-        row.appendChild(assetsCell);
-
-        // Liquidity
+        // Liquidity with color indicator
         const liquidityCell = document.createElement('td');
-        liquidityCell.textContent = `$${pool.liquidityUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+        liquidityCell.className = 'liquidity-cell';
+        
+        const liqIndicator = getLiquidityIndicator(pool.liquidityUsd);
+        
+        // Background bar
+        const bar = document.createElement('div');
+        bar.className = 'liquidity-bar';
+        bar.style.width = `${liqIndicator.percentage}%`;
+        bar.style.backgroundColor = `hsl(${liqIndicator.hue}, 70%, 50%)`;
+        liquidityCell.appendChild(bar);
+        
+        // Value text
+        const valueSpan = document.createElement('span');
+        valueSpan.className = `liquidity-value ${liqIndicator.colorClass}`;
+        valueSpan.textContent = formatUsdCompact(pool.liquidityUsd);
+        liquidityCell.appendChild(valueSpan);
+        
         row.appendChild(liquidityCell);
 
         // Volume 24h
         const volumeCell = document.createElement('td');
-        volumeCell.textContent = `$${pool.volumeUsd24h.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+        volumeCell.textContent = formatUsdCompact(pool.volumeUsd24h);
         row.appendChild(volumeCell);
 
         // Turnover Ratio
@@ -654,18 +696,14 @@ function sortSectionByKey(sectionId, sortKey, clickedHeader) {
     const pools = currentCategorizedPools[sectionId];
     if (!pools || pools.length === 0) return;
 
-    // Determine sort direction
     const isCurrentlyDesc = clickedHeader.classList.contains('sort-desc');
     const newOrder = isCurrentlyDesc ? 'asc' : 'desc';
 
-    // Clear sort indicators for this section
     const sectionHeaders = document.querySelectorAll(`th[data-section="${sectionId}"]`);
     sectionHeaders.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
 
-    // Set new indicator
     clickedHeader.classList.add(newOrder === 'asc' ? 'sort-asc' : 'sort-desc');
 
-    // Sort
     pools.sort((a, b) => {
         let aVal, bVal;
 
@@ -675,10 +713,6 @@ function sortSectionByKey(sectionId, sortKey, clickedHeader) {
             case 'protocol':
                 aVal = (a[sortKey] || '').toLowerCase();
                 bVal = (b[sortKey] || '').toLowerCase();
-                return newOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-            case 'assets':
-                aVal = a.baseAsset;
-                bVal = b.baseAsset;
                 return newOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
             case 'liquidityUsd':
             case 'volumeUsd24h':
@@ -690,7 +724,6 @@ function sortSectionByKey(sectionId, sortKey, clickedHeader) {
         }
     });
 
-    // Re-render just this section
     const tableBodyId = `${sectionId}-table-body`;
     const noDataId = `${sectionId}-no-data`;
     const countId = `${sectionId}-count`;
@@ -715,7 +748,6 @@ async function mainApp() {
     if (refreshBtn) refreshBtn.disabled = true;
 
     try {
-        // 1. Fetch data
         const allRawPools = await fetchAllPoolData();
         if (allRawPools.length === 0) {
             throw new Error('All data sources failed to return pool data.');
@@ -723,21 +755,15 @@ async function mainApp() {
 
         updateStatusBar('Processing and normalizing data...', 'info');
 
-        // 2. Normalize
         const normalizedPools = normalizeAllPools(allRawPools);
-
-        // 3. Filter
         const validPools = filterPools(normalizedPools);
-
-        // 4. Categorize by pair type
         const categorizedPools = categorizePools(validPools);
         currentCategorizedPools = categorizedPools;
 
-        // 5. Render
         renderAllSections(categorizedPools);
 
         const totalPools = Object.values(categorizedPools).reduce((sum, arr) => sum + arr.length, 0);
-        updateStatusBar(`Successfully loaded ${totalPools} pools across ${Object.keys(categorizedPools).length} categories.`, 'success');
+        updateStatusBar(`Loaded ${totalPools} pools across 3 categories.`, 'success');
         updateLastUpdatedTime();
 
     } catch (error) {
@@ -788,7 +814,6 @@ function clearCache() {
 function initializeDashboard() {
     logMessage('DOM loaded. Initializing dashboard.', 'info');
 
-    // Refresh button
     const refreshButton = document.getElementById('refresh-btn');
     if (refreshButton) {
         refreshButton.addEventListener('click', () => {
@@ -799,18 +824,10 @@ function initializeDashboard() {
         });
     }
 
-    // Section collapse
     setupSectionCollapse();
-
-    // Table sorting
     setupTableSorting();
-
-    // Initial run
     mainApp();
-
-    // Start auto-refresh
     startAutoRefresh();
 }
 
-// --- EVENT LISTENER FOR DOM READY ---
 document.addEventListener('DOMContentLoaded', initializeDashboard);
