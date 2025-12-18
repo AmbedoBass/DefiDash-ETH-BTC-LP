@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETH / BTC Liquidity Turnover Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>ETH / BTC Liquidity Turnover Dashboard</h1>
+        <p>A discovery tool for active BTC / ETH pools. Ranks pools by Liquidity Turnover Ratio (24h Volume / Total Liquidity).</p>
+    </header>
+
+    <main>
+        <div id="controls">
+            <button id="refresh-btn">Refresh Data</button>
+            <span id="last-updated">Loading...</span>
+        </div>
+
+        <div id="status-bar">
+            <span id="status-message">Initializing...</span>
+            <div id="loading-spinner" class="hidden"></div>
+        </div>
+
+        <section id="dashboard-content">
+            <div id="pool-table-container">
+                <table id="pool-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="name">Pool Name</th>
+                            <th data-sort="chain">Chain</th>
+                            <th data-sort="protocol">Protocol</th>
+                            <th data-sort="assets">Assets</th>
+                            <th data-sort="liquidityUsd">Liquidity (USD)</th>
+                            <th data-sort="volumeUsd24h">Volume 24h (USD)</th>
+                            <th data-sort="score">Turnover Ratio</th>
+                            <th>Source</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pool-table-body">
+                        <!-- Pool rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+                <div id="no-data-message" class="hidden">
+                    No pool data available. Please try refreshing.
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>This is a static, client-side dashboard. Data is sourced from public APIs and may be subject to rate limits or inaccuracies. Always do your own research.</p>
+        <p>For the full source code and disclaimers, please visit the project's GitHub repository.</p>
+    </footer>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
