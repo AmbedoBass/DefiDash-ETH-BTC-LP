@@ -1,5 +1,5 @@
 // script.js - ETH/BTC Liquidity Turnover Dashboard
-// Final Assembled Version
+// Sectioned Version with Enhanced Data Fetching
 
 // =================================================================
 // UTILITY FUNCTIONS
@@ -7,40 +7,33 @@
 
 /**
  * Logs a message to the console with a timestamp and type.
- * @param {string} message - The message to log.
- * @param {string} [type='info'] - The type of message (info, success, warn, error).
  */
 function logMessage(message, type = 'info') {
     const timestamp = new Date().toISOString();
     const prefix = `[${timestamp}] [${type.toUpperCase()}]`;
-    
     switch (type) {
-        case 'error':
-            console.error(prefix, message);
-            break;
-        case 'warn':
-            console.warn(prefix, message);
-            break;
-        case 'success':
-            console.log('%c' + prefix + ' ' + message, 'color: #4caf50');
-            break;
-        default:
-            console.log(prefix, message);
+        case 'error': console.error(prefix, message); break;
+        case 'warn': console.warn(prefix, message); break;
+        case 'success': console.log('%c' + prefix + ' ' + message, 'color: #4caf50'); break;
+        default: console.log(prefix, message);
     }
+}
+
+/**
+ * Delays execution for a given number of milliseconds.
+ */
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // =================================================================
 // DATA FETCHING MODULE
 // =================================================================
 
-// A simple in-memory cache to avoid re-fetching data within the same session
 const dataCache = new Map();
 
 /**
- * Fetches data from a URL with an AbortController for timeout and cancellation.
- * @param {string} url - The URL to fetch from.
- * @param {number} [timeout=15000] - The timeout in milliseconds.
- * @returns {Promise<object|null>} The JSON response or null if an error occurs.
+ * Fetches data from a URL with timeout and error handling.
  */
 async function fetchWithTimeout(url, timeout = 15000) {
     const controller = new AbortController();
@@ -49,18 +42,14 @@ async function fetchWithTimeout(url, timeout = 15000) {
     try {
         const response = await fetch(url, {
             signal: controller.signal,
-            headers: {
-                'Accept': 'application/json'
-            }
+            headers: { 'Accept': 'application/json' }
         });
-
         clearTimeout(timeoutId);
 
         if (!response.ok) {
             logMessage(`Fetch failed for ${url}: ${response.status} ${response.statusText}`, 'warn');
             return null;
         }
-
         return await response.json();
     } catch (error) {
         clearTimeout(timeoutId);
@@ -74,11 +63,9 @@ async function fetchWithTimeout(url, timeout = 15000) {
 }
 
 /**
- * Fetches pools from GeckoTerminal for a specific chain.
- * @param {string} chainName - The internal chain name (e.g., 'ethereum', 'base').
- * @returns {Promise<Array<object>>} An array of raw pool data objects.
+ * Fetches multiple pages of pools from GeckoTerminal for a chain.
  */
-async function fetchGeckoTerminalPools(chainName) {
+async function fetchGeckoTerminalPoolsForChain(chainName) {
     const geckoChainId = CONFIG.CHAIN_TO_GECKO_ID[chainName];
     if (!geckoChainId) {
         logMessage(`No GeckoTerminal chain ID mapping for: ${chainName}`, 'warn');
@@ -91,109 +78,146 @@ async function fetchGeckoTerminalPools(chainName) {
         return dataCache.get(cacheKey);
     }
 
-    const url = `${CONFIG.DATA_SOURCES.GeckoTerminal.baseUrl}/networks/${geckoChainId}/pools?page=1`;
-    logMessage(`Fetching from GeckoTerminal for chain: ${chainName} (${geckoChainId})`, 'info');
+    const allPools = [];
+    const maxPages = CONFIG.GECKO_MAX_PAGES || 3;
 
-    const data = await fetchWithTimeout(url);
+    for (let page = 1; page <= maxPages; page++) {
+        const url = `${CONFIG.DATA_SOURCES.GeckoTerminal.baseUrl}/networks/${geckoChainId}/pools?page=${page}`;
+        logMessage(`Fetching GeckoTerminal ${chainName} page ${page}...`, 'info');
 
-    if (data && data.data && Array.isArray(data.data)) {
-        const relevantPools = data.data.filter(pool => {
-            const attrs = pool.attributes || {};
-            const baseSymbol = (attrs.base_token_symbol || '').toLowerCase();
-            const quoteSymbol = (attrs.quote_token_symbol || '').toLowerCase();
+        const data = await fetchWithTimeout(url);
+        
+        if (data && data.data && Array.isArray(data.data) && data.data.length > 0) {
+            allPools.push(...data.data);
+            
+            // If we got fewer than expected, no more pages
+            if (data.data.length < 20) break;
+        } else {
+            break;
+        }
 
-            const isBtcOrEth = 
-                CONFIG.ASSET_CLASSES.BTC.some(s => baseSymbol.includes(s)) ||
-                CONFIG.ASSET_CLASSES.ETH.some(s => baseSymbol.includes(s));
-
-            const isStableOrEth = 
-                CONFIG.ASSET_CLASSES.STABLE.some(s => quoteSymbol.includes(s)) ||
-                CONFIG.ASSET_CLASSES.ETH.some(s => quoteSymbol.includes(s));
-
-            return isBtcOrEth && isStableOrEth;
-        });
-
-        dataCache.set(cacheKey, relevantPools);
-        return relevantPools;
+        // Rate limiting delay between pages
+        if (page < maxPages) await delay(150);
     }
 
-    logMessage(`No valid pool data found from GeckoTerminal for ${chainName}`, 'warn');
+    if (allPools.length > 0) {
+        dataCache.set(cacheKey, allPools);
+        logMessage(`GeckoTerminal ${chainName}: fetched ${allPools.length} pools`, 'success');
+    }
+
+    return allPools;
+}
+
+/**
+ * Fetches pools from GeckoTerminal using token search.
+ */
+async function fetchGeckoTerminalTokenSearch(query) {
+    const cacheKey = `gt-search-${query}`;
+    if (dataCache.has(cacheKey)) {
+        return dataCache.get(cacheKey);
+    }
+
+    const url = `${CONFIG.DATA_SOURCES.GeckoTerminal.baseUrl}/search/pools?query=${encodeURIComponent(query)}&page=1`;
+    logMessage(`GeckoTerminal search for: ${query}`, 'info');
+
+    const data = await fetchWithTimeout(url);
+    
+    if (data && data.data && Array.isArray(data.data)) {
+        dataCache.set(cacheKey, data.data);
+        return data.data;
+    }
+
     return [];
 }
 
 /**
- * Fetches pools from DexScreener using search queries.
- * @returns {Promise<Array<object>>} An array of raw pool data objects.
+ * Fetches pools from DexScreener using multiple search queries.
  */
 async function fetchDexScreenerPools() {
-    const cacheKey = 'ds-general';
+    const cacheKey = 'ds-all';
     if (dataCache.has(cacheKey)) {
         logMessage('Returning cached DexScreener data.', 'info');
         return dataCache.get(cacheKey);
     }
 
-    const searchQueries = ['WBTC', 'WETH'];
     const allPools = [];
+    const seenPairs = new Set();
+    const queries = CONFIG.DEXSCREENER_QUERIES || ['WBTC', 'WETH'];
 
-    for (const query of searchQueries) {
-        const url = `${CONFIG.DATA_SOURCES.DexScreener.baseUrl}/search?q=${query}`;
-        logMessage(`Fetching from DexScreener for query: ${query}`, 'info');
+    for (const query of queries) {
+        const url = `${CONFIG.DATA_SOURCES.DexScreener.baseUrl}/search?q=${encodeURIComponent(query)}`;
+        logMessage(`DexScreener search: ${query}`, 'info');
 
         const data = await fetchWithTimeout(url);
+        
         if (data && data.pairs && Array.isArray(data.pairs)) {
-            allPools.push(...data.pairs);
+            for (const pair of data.pairs) {
+                // Deduplicate by pair address
+                if (!seenPairs.has(pair.pairAddress)) {
+                    seenPairs.add(pair.pairAddress);
+                    allPools.push(pair);
+                }
+            }
         }
+
+        await delay(100); // Rate limiting
     }
 
-    // Filter to only include pools on our supported chains
-    const supportedChains = [...CONFIG.HIGH_CONFIDENCE_CHAINS, ...CONFIG.MEDIUM_CONFIDENCE_CHAINS];
-    const filteredPools = allPools.filter(pool => {
-        const chainId = (pool.chainId || '').toLowerCase();
-        const normalizedChain = CONFIG.CHAIN_ID_MAP[chainId];
-        return normalizedChain && supportedChains.includes(normalizedChain);
-    });
-
-    dataCache.set(cacheKey, filteredPools);
-    return filteredPools;
+    dataCache.set(cacheKey, allPools);
+    logMessage(`DexScreener: fetched ${allPools.length} unique pools`, 'success');
+    return allPools;
 }
 
 /**
  * Main orchestrator for fetching data from all sources.
- * @returns {Promise<Array<object>>} An array of raw pool data objects from all sources.
  */
 async function fetchAllPoolData() {
     const allRawPools = [];
-    const sourceRank = CONFIG.DATA_SOURCES.GeckoTerminal.rank;
 
-    // 1. Try GeckoTerminal for all configured chains
-    logMessage('Attempting to fetch from GeckoTerminal...', 'info');
+    // 1. Fetch from GeckoTerminal for all chains
+    logMessage('Fetching from GeckoTerminal...', 'info');
     const chainsToFetch = [...CONFIG.HIGH_CONFIDENCE_CHAINS, ...CONFIG.MEDIUM_CONFIDENCE_CHAINS];
 
     for (const chain of chainsToFetch) {
         try {
-            const pools = await fetchGeckoTerminalPools(chain);
+            const pools = await fetchGeckoTerminalPoolsForChain(chain);
             if (pools.length > 0) {
                 allRawPools.push(...pools.map(p => ({
                     ...p,
                     _source: 'GeckoTerminal',
-                    _sourceRank: sourceRank,
+                    _sourceRank: CONFIG.DATA_SOURCES.GeckoTerminal.rank,
                     _chain: chain
                 })));
             }
         } catch (err) {
             logMessage(`Error fetching GeckoTerminal for ${chain}: ${err.message}`, 'error');
         }
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await delay(200);
     }
 
-    if (allRawPools.length > 0) {
-        logMessage(`Successfully fetched ${allRawPools.length} pools from GeckoTerminal.`, 'success');
-        return allRawPools;
+    // 2. Also do token searches on GeckoTerminal for better coverage
+    const tokenSearches = ['WBTC', 'cbBTC', 'tBTC', 'WETH', 'stETH', 'wstETH'];
+    for (const token of tokenSearches) {
+        try {
+            const pools = await fetchGeckoTerminalTokenSearch(token);
+            if (pools.length > 0) {
+                allRawPools.push(...pools.map(p => ({
+                    ...p,
+                    _source: 'GeckoTerminal',
+                    _sourceRank: CONFIG.DATA_SOURCES.GeckoTerminal.rank,
+                    _chain: p.attributes?.network || 'unknown'
+                })));
+            }
+        } catch (err) {
+            logMessage(`Error in GeckoTerminal search for ${token}: ${err.message}`, 'error');
+        }
+        await delay(150);
     }
 
-    // 2. Fallback to DexScreener
-    logMessage('GeckoTerminal returned no data. Falling back to DexScreener...', 'warn');
+    logMessage(`GeckoTerminal total raw: ${allRawPools.length} pools`, 'info');
+
+    // 3. Fetch from DexScreener
+    logMessage('Fetching from DexScreener...', 'info');
     try {
         const dsPools = await fetchDexScreenerPools();
         if (dsPools.length > 0) {
@@ -202,15 +226,13 @@ async function fetchAllPoolData() {
                 _source: 'DexScreener',
                 _sourceRank: CONFIG.DATA_SOURCES.DexScreener.rank
             })));
-            logMessage(`Successfully fetched ${allRawPools.length} pools from DexScreener.`, 'success');
-            return allRawPools;
         }
     } catch (err) {
         logMessage(`Error fetching DexScreener: ${err.message}`, 'error');
     }
 
-    logMessage('All sources failed. Returning empty array.', 'error');
-    return [];
+    logMessage(`Total raw pools from all sources: ${allRawPools.length}`, 'info');
+    return allRawPools;
 }
 
 // =================================================================
@@ -218,16 +240,14 @@ async function fetchAllPoolData() {
 // =================================================================
 
 /**
- * Determines the canonical asset class (BTC, ETH, STABLE) for a given token symbol.
- * @param {string} symbol - The token symbol.
- * @returns {string|null} The canonical asset class or null.
+ * Determines the canonical asset class for a token symbol.
  */
 function resolveAssetClass(symbol) {
     if (!symbol) return null;
     const lowerSymbol = symbol.toLowerCase();
-
+    
     for (const assetClass in CONFIG.ASSET_CLASSES) {
-        if (CONFIG.ASSET_CLASSES[assetClass].some(altSymbol => lowerSymbol.includes(altSymbol))) {
+        if (CONFIG.ASSET_CLASSES[assetClass].some(alt => lowerSymbol.includes(alt))) {
             return assetClass;
         }
     }
@@ -235,58 +255,69 @@ function resolveAssetClass(symbol) {
 }
 
 /**
- * Normalizes a GeckoTerminal pool object into the canonical data contract.
- * @param {object} pool - The raw pool object.
- * @returns {object|null} The normalized pool object or null.
+ * Determines the pair type for a pool based on its assets.
+ */
+function determinePairType(baseAsset, quoteAsset) {
+    if (baseAsset === 'BTC' && quoteAsset === 'STABLE') return 'btc-stable';
+    if (baseAsset === 'ETH' && quoteAsset === 'STABLE') return 'eth-stable';
+    if (baseAsset === 'BTC' && quoteAsset === 'ETH') return 'btc-eth';
+    if (baseAsset === 'ETH' && quoteAsset === 'BTC') return 'btc-eth'; // ETH/BTC same as BTC/ETH
+    // Handle reversed pairs
+    if (baseAsset === 'STABLE' && quoteAsset === 'BTC') return 'btc-stable';
+    if (baseAsset === 'STABLE' && quoteAsset === 'ETH') return 'eth-stable';
+    return null;
+}
+
+/**
+ * Normalizes a GeckoTerminal pool object.
  */
 function normalizeGeckoTerminalPool(pool) {
     const attrs = pool.attributes || {};
     const baseSymbol = attrs.base_token_symbol || '';
     const quoteSymbol = attrs.quote_token_symbol || '';
 
-    const baseAssetClass = resolveAssetClass(baseSymbol);
-    const quoteAssetClass = resolveAssetClass(quoteSymbol);
+    let baseAssetClass = resolveAssetClass(baseSymbol);
+    let quoteAssetClass = resolveAssetClass(quoteSymbol);
 
-    // Validate pair type
-    const isValidPair =
-        (baseAssetClass === 'BTC' || baseAssetClass === 'ETH') &&
-        (quoteAssetClass === 'STABLE' || quoteAssetClass === 'ETH');
+    // Swap if needed to normalize pair direction
+    if (quoteAssetClass === 'BTC' || (quoteAssetClass === 'ETH' && baseAssetClass === 'STABLE')) {
+        [baseAssetClass, quoteAssetClass] = [quoteAssetClass, baseAssetClass];
+    }
 
-    if (!isValidPair) return null;
+    const pairType = determinePairType(baseAssetClass, quoteAssetClass);
+    if (!pairType) return null;
 
-    // Prevent ETH/ETH pairs
-    if (baseAssetClass === 'ETH' && quoteAssetClass === 'ETH') return null;
+    // Prevent same-asset pairs
+    if (baseAssetClass === quoteAssetClass) return null;
 
-    const chainName = pool._chain || CONFIG.CHAIN_ID_MAP[attrs.network_id] || attrs.network_id || 'unknown';
-    const assetConfidence = CONFIG.HIGH_CONFIDENCE_CHAINS.includes(chainName) ? 'high' : 'medium';
+    let chainName = pool._chain;
+    if (!chainName || chainName === 'unknown') {
+        const networkId = attrs.network?.identifier || attrs.network_id || '';
+        chainName = CONFIG.CHAIN_ID_MAP[networkId] || networkId || 'unknown';
+    }
 
     const liquidityUsd = parseFloat(attrs.reserve_in_usd) || 0;
     const volumeUsd24h = parseFloat(attrs.volume_usd?.h24) || 0;
 
     return {
-        id: pool.id,
+        id: pool.id || `gt-${Math.random().toString(36).substr(2, 9)}`,
         name: attrs.name || `${baseSymbol}/${quoteSymbol}`,
         baseAsset: baseAssetClass,
         quoteAsset: quoteAssetClass,
-        assetConfidence: assetConfidence,
+        pairType: pairType,
         liquidityUsd: liquidityUsd,
         volumeUsd24h: volumeUsd24h,
         chain: chainName,
-        protocol: attrs.dex_id || 'unknown',
-        ammType: 'unknown',
-        feeTier: null,
+        protocol: attrs.dex?.identifier || attrs.dex_id || 'unknown',
         source: pool._source,
         sourceRank: pool._sourceRank,
         score: null,
-        poolUrl: attrs.pool_created_at ? `https://www.geckoterminal.com/${CONFIG.CHAIN_TO_GECKO_ID[chainName] || chainName}/pools/${pool.id}` : null,
-        rawData: pool
+        poolUrl: attrs.pool_url || (pool.id ? `https://www.geckoterminal.com/${CONFIG.CHAIN_TO_GECKO_ID[chainName] || chainName}/pools/${pool.id.split('_').pop()}` : null)
     };
 }
 
 /**
- * Normalizes a DexScreener pool object into the canonical data contract.
- * @param {object} pool - The raw pool object.
- * @returns {object|null} The normalized pool object or null.
+ * Normalizes a DexScreener pool object.
  */
 function normalizeDexScreenerPool(pool) {
     const baseToken = pool.baseToken || {};
@@ -294,43 +325,40 @@ function normalizeDexScreenerPool(pool) {
     const baseSymbol = baseToken.symbol || '';
     const quoteSymbol = quoteToken.symbol || '';
 
-    const baseAssetClass = resolveAssetClass(baseSymbol);
-    const quoteAssetClass = resolveAssetClass(quoteSymbol);
+    let baseAssetClass = resolveAssetClass(baseSymbol);
+    let quoteAssetClass = resolveAssetClass(quoteSymbol);
 
-    const isValidPair =
-        (baseAssetClass === 'BTC' || baseAssetClass === 'ETH') &&
-        (quoteAssetClass === 'STABLE' || quoteAssetClass === 'ETH');
+    // Swap if needed to normalize pair direction
+    if (quoteAssetClass === 'BTC' || (quoteAssetClass === 'ETH' && baseAssetClass === 'STABLE')) {
+        [baseAssetClass, quoteAssetClass] = [quoteAssetClass, baseAssetClass];
+    }
 
-    if (!isValidPair) return null;
-    if (baseAssetClass === 'ETH' && quoteAssetClass === 'ETH') return null;
+    const pairType = determinePairType(baseAssetClass, quoteAssetClass);
+    if (!pairType) return null;
+
+    if (baseAssetClass === quoteAssetClass) return null;
 
     const chainName = CONFIG.CHAIN_ID_MAP[(pool.chainId || '').toLowerCase()] || pool.chainId || 'unknown';
-    const assetConfidence = CONFIG.HIGH_CONFIDENCE_CHAINS.includes(chainName) ? 'high' : 'medium';
 
     return {
         id: pool.pairAddress,
         name: `${baseSymbol}/${quoteSymbol}`,
         baseAsset: baseAssetClass,
         quoteAsset: quoteAssetClass,
-        assetConfidence: assetConfidence,
+        pairType: pairType,
         liquidityUsd: parseFloat(pool.liquidity?.usd) || 0,
         volumeUsd24h: parseFloat(pool.volume?.h24) || 0,
         chain: chainName,
         protocol: pool.dexId || 'unknown',
-        ammType: 'unknown',
-        feeTier: null,
         source: pool._source,
         sourceRank: pool._sourceRank,
         score: null,
-        poolUrl: pool.url || null,
-        rawData: pool
+        poolUrl: pool.url || null
     };
 }
 
 /**
  * Normalizes all raw pool data from various sources.
- * @param {Array<object>} rawPools - Array of raw pool data.
- * @returns {Array<object>} Array of normalized pool objects.
  */
 function normalizeAllPools(rawPools) {
     if (!rawPools || rawPools.length === 0) {
@@ -338,19 +366,25 @@ function normalizeAllPools(rawPools) {
         return [];
     }
 
-    const normalizedPools = rawPools
-        .map(pool => {
-            if (pool._source === 'GeckoTerminal') {
-                return normalizeGeckoTerminalPool(pool);
-            } else if (pool._source === 'DexScreener') {
-                return normalizeDexScreenerPool(pool);
-            }
-            logMessage(`Unknown source for pool: ${pool._source}`, 'warn');
-            return null;
-        })
-        .filter(pool => pool !== null);
+    const normalizedPools = [];
+    const seenIds = new Set();
 
-    logMessage(`Normalized ${normalizedPools.length} pools from ${rawPools.length} raw entries.`, 'info');
+    for (const pool of rawPools) {
+        let normalized = null;
+
+        if (pool._source === 'GeckoTerminal') {
+            normalized = normalizeGeckoTerminalPool(pool);
+        } else if (pool._source === 'DexScreener') {
+            normalized = normalizeDexScreenerPool(pool);
+        }
+
+        if (normalized && !seenIds.has(normalized.id)) {
+            seenIds.add(normalized.id);
+            normalizedPools.push(normalized);
+        }
+    }
+
+    logMessage(`Normalized ${normalizedPools.length} unique pools from ${rawPools.length} raw entries.`, 'info');
     return normalizedPools;
 }
 
@@ -360,71 +394,27 @@ function normalizeAllPools(rawPools) {
 
 /**
  * Validates a pool object against project constraints.
- * @param {object} pool - The pool object to validate.
- * @returns {boolean} True if valid, false otherwise.
  */
 function validatePool(pool) {
-    // Check required fields
-    const requiredFields = ['id', 'name', 'baseAsset', 'liquidityUsd', 'volumeUsd24h', 'chain', 'protocol'];
-    for (const field of requiredFields) {
-        if (pool[field] === undefined || pool[field] === null) {
-            return false;
-        }
-    }
-
-    // Validate data types
-    if (typeof pool.id !== 'string' || typeof pool.name !== 'string' || typeof pool.chain !== 'string') {
-        return false;
-    }
-    if (typeof pool.liquidityUsd !== 'number' || typeof pool.volumeUsd24h !== 'number') {
-        return false;
-    }
-
-    // Validate asset classes (baseAsset should be BTC, ETH, or STABLE)
-    const validAssetClasses = ['BTC', 'ETH', 'STABLE'];
-    if (!validAssetClasses.includes(pool.baseAsset)) {
-        return false;
-    }
-    if (pool.quoteAsset && !validAssetClasses.includes(pool.quoteAsset)) {
-        return false;
-    }
-
-    // Apply numerical filters
-    if (pool.liquidityUsd < CONFIG.MIN_LIQUIDITY) {
-        return false;
-    }
-    if (pool.volumeUsd24h < CONFIG.MIN_VOLUME_24H) {
-        return false;
-    }
-
-    // Ensure no zero-division for scoring
-    if (pool.liquidityUsd <= 0) {
-        return false;
-    }
-
+    if (!pool.id || !pool.name || !pool.baseAsset || !pool.pairType) return false;
+    if (typeof pool.liquidityUsd !== 'number' || typeof pool.volumeUsd24h !== 'number') return false;
+    if (pool.liquidityUsd < CONFIG.MIN_LIQUIDITY) return false;
+    if (pool.volumeUsd24h < CONFIG.MIN_VOLUME_24H) return false;
+    if (pool.liquidityUsd <= 0) return false;
     return true;
 }
 
 /**
  * Filters pools to only include valid ones.
- * @param {Array<object>} pools - Array of pool objects.
- * @returns {Array<object>} Array of valid pools.
  */
 function filterPools(pools) {
-    if (!Array.isArray(pools)) {
-        logMessage('filterPools received a non-array input.', 'error');
-        return [];
-    }
-
     const validPools = pools.filter(pool => validatePool(pool));
-    logMessage(`Filtered down to ${validPools.length} valid pools from ${pools.length} entries.`, 'info');
+    logMessage(`Filtered to ${validPools.length} valid pools from ${pools.length} entries.`, 'info');
     return validPools;
 }
 
 /**
  * Calculates the Liquidity Turnover Ratio for a pool.
- * @param {object} pool - The pool object.
- * @returns {number} The calculated score.
  */
 function calculateTurnoverScore(pool) {
     if (pool.liquidityUsd <= 0) return 0;
@@ -433,8 +423,6 @@ function calculateTurnoverScore(pool) {
 
 /**
  * Scores and ranks pools by turnover ratio.
- * @param {Array<object>} pools - Array of validated pool objects.
- * @returns {Array<object>} Scored and sorted array of pools.
  */
 function scoreAndRankPools(pools) {
     const scoredPools = pools.map(pool => ({
@@ -442,16 +430,36 @@ function scoreAndRankPools(pools) {
         score: calculateTurnoverScore(pool)
     }));
 
-    // Sort by score descending, then by liquidity as tie-breaker
     scoredPools.sort((a, b) => {
-        if (b.score !== a.score) {
-            return b.score - a.score;
-        }
+        if (b.score !== a.score) return b.score - a.score;
         return b.liquidityUsd - a.liquidityUsd;
     });
 
-    logMessage(`Scored and ranked ${scoredPools.length} pools.`, 'info');
     return scoredPools;
+}
+
+/**
+ * Categorizes pools by pair type.
+ */
+function categorizePools(pools) {
+    const categories = {
+        'btc-stable': [],
+        'eth-stable': [],
+        'btc-eth': []
+    };
+
+    for (const pool of pools) {
+        if (categories[pool.pairType]) {
+            categories[pool.pairType].push(pool);
+        }
+    }
+
+    // Sort each category
+    for (const key in categories) {
+        categories[key] = scoreAndRankPools(categories[key]);
+    }
+
+    return categories;
 }
 
 // =================================================================
@@ -459,21 +467,30 @@ function scoreAndRankPools(pools) {
 // =================================================================
 
 /**
- * Renders the pool data into the main table.
- * @param {Array<object>} pools - Array of scored and ranked pool objects.
+ * Renders pools into a specific table body.
  */
-function renderPoolTable(pools) {
-    const tableBody = document.getElementById('pool-table-body');
-    const noDataMessage = document.getElementById('no-data-message');
+function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
+    const tableBody = document.getElementById(tableBodyId);
+    const noDataMessage = document.getElementById(noDataId);
+    const countElement = document.getElementById(countId);
 
-    tableBody.innerHTML = '';
-
-    if (!pools || pools.length === 0) {
-        noDataMessage.classList.remove('hidden');
+    if (!tableBody) {
+        logMessage(`Table body not found: ${tableBodyId}`, 'error');
         return;
     }
 
-    noDataMessage.classList.add('hidden');
+    tableBody.innerHTML = '';
+
+    if (countElement) {
+        countElement.textContent = `(${pools.length})`;
+    }
+
+    if (!pools || pools.length === 0) {
+        if (noDataMessage) noDataMessage.classList.remove('hidden');
+        return;
+    }
+
+    if (noDataMessage) noDataMessage.classList.add('hidden');
 
     pools.forEach(pool => {
         const row = document.createElement('tr');
@@ -504,7 +521,7 @@ function renderPoolTable(pools) {
         protocolCell.textContent = pool.protocol;
         row.appendChild(protocolCell);
 
-        // Assets with badges
+        // Assets
         const assetsCell = document.createElement('td');
         const baseBadge = document.createElement('span');
         baseBadge.className = `asset-badge ${pool.baseAsset.toLowerCase()}`;
@@ -521,18 +538,12 @@ function renderPoolTable(pools) {
 
         // Liquidity
         const liquidityCell = document.createElement('td');
-        liquidityCell.textContent = `$${pool.liquidityUsd.toLocaleString(undefined, {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        })}`;
+        liquidityCell.textContent = `$${pool.liquidityUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
         row.appendChild(liquidityCell);
 
         // Volume 24h
         const volumeCell = document.createElement('td');
-        volumeCell.textContent = `$${pool.volumeUsd24h.toLocaleString(undefined, {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        })}`;
+        volumeCell.textContent = `$${pool.volumeUsd24h.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
         row.appendChild(volumeCell);
 
         // Turnover Ratio
@@ -551,31 +562,51 @@ function renderPoolTable(pools) {
 }
 
 /**
- * Updates the status bar with a message and type.
- * @param {string} message - The message to display.
- * @param {string} [type='info'] - The type (info, success, error, warning).
+ * Renders all categorized pools to their respective sections.
+ */
+function renderAllSections(categorizedPools) {
+    renderPoolsToTable(
+        categorizedPools['btc-stable'],
+        'btc-stable-table-body',
+        'btc-stable-no-data',
+        'btc-stable-count'
+    );
+
+    renderPoolsToTable(
+        categorizedPools['eth-stable'],
+        'eth-stable-table-body',
+        'eth-stable-no-data',
+        'eth-stable-count'
+    );
+
+    renderPoolsToTable(
+        categorizedPools['btc-eth'],
+        'btc-eth-table-body',
+        'btc-eth-no-data',
+        'btc-eth-count'
+    );
+}
+
+/**
+ * Updates the status bar.
  */
 function updateStatusBar(message, type = 'info') {
     const statusBar = document.getElementById('status-bar');
     const statusMessage = document.getElementById('status-message');
-
     statusMessage.textContent = message;
-    statusBar.className = ''; // Reset classes
-    statusBar.classList.add(type);
+    statusBar.className = type;
 }
 
 /**
  * Updates the last updated timestamp.
  */
 function updateLastUpdatedTime() {
-    const timestampElement = document.getElementById('last-updated');
-    const now = new Date();
-    timestampElement.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+    const el = document.getElementById('last-updated');
+    el.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
 }
 
 /**
- * Toggles the loading spinner visibility.
- * @param {boolean} isVisible - True to show, false to hide.
+ * Toggles the loading spinner.
  */
 function toggleLoader(isVisible) {
     const loader = document.getElementById('loading-spinner');
@@ -587,83 +618,83 @@ function toggleLoader(isVisible) {
 }
 
 /**
- * Sets up click handlers for table headers to enable sorting.
+ * Sets up section collapse functionality.
  */
-function setupTableSorting() {
-    const headers = document.querySelectorAll('#pool-table th[data-sort]');
+function setupSectionCollapse() {
+    const headers = document.querySelectorAll('.section-header');
     headers.forEach(header => {
         header.addEventListener('click', () => {
-            const sortKey = header.dataset.sort;
-            sortTableByKey(sortKey);
+            const section = header.closest('.pair-section');
+            section.classList.toggle('collapsed');
         });
     });
 }
 
-// Store current pools for re-sorting
-let currentPools = [];
+/**
+ * Sets up table sorting for all sections.
+ */
+function setupTableSorting() {
+    const headers = document.querySelectorAll('.pool-table th[data-sort]');
+    headers.forEach(header => {
+        header.addEventListener('click', () => {
+            const sortKey = header.dataset.sort;
+            const sectionId = header.dataset.section;
+            sortSectionByKey(sectionId, sortKey, header);
+        });
+    });
+}
+
+// Store categorized pools for re-sorting
+let currentCategorizedPools = {};
 
 /**
- * Sorts the current pools by a given key and re-renders.
- * @param {string} sortKey - The key to sort by.
+ * Sorts a specific section's pools by key.
  */
-function sortTableByKey(sortKey) {
-    if (currentPools.length === 0) return;
+function sortSectionByKey(sectionId, sortKey, clickedHeader) {
+    const pools = currentCategorizedPools[sectionId];
+    if (!pools || pools.length === 0) return;
 
     // Determine sort direction
-    const currentSortKey = document.body.dataset.sortKey;
-    const currentOrder = document.body.dataset.sortOrder || 'desc';
+    const isCurrentlyDesc = clickedHeader.classList.contains('sort-desc');
+    const newOrder = isCurrentlyDesc ? 'asc' : 'desc';
 
-    let newOrder = 'desc';
-    if (currentSortKey === sortKey && currentOrder === 'desc') {
-        newOrder = 'asc';
-    }
+    // Clear sort indicators for this section
+    const sectionHeaders = document.querySelectorAll(`th[data-section="${sectionId}"]`);
+    sectionHeaders.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
 
-    document.body.dataset.sortKey = sortKey;
-    document.body.dataset.sortOrder = newOrder;
+    // Set new indicator
+    clickedHeader.classList.add(newOrder === 'asc' ? 'sort-asc' : 'sort-desc');
 
-    // Sort pools
-    currentPools.sort((a, b) => {
+    // Sort
+    pools.sort((a, b) => {
         let aVal, bVal;
 
         switch (sortKey) {
             case 'name':
-                aVal = a.name.toLowerCase();
-                bVal = b.name.toLowerCase();
-                return newOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
             case 'chain':
-                aVal = a.chain.toLowerCase();
-                bVal = b.chain.toLowerCase();
-                return newOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
             case 'protocol':
-                aVal = a.protocol.toLowerCase();
-                bVal = b.protocol.toLowerCase();
+                aVal = (a[sortKey] || '').toLowerCase();
+                bVal = (b[sortKey] || '').toLowerCase();
                 return newOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
             case 'assets':
                 aVal = a.baseAsset;
                 bVal = b.baseAsset;
                 return newOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
             case 'liquidityUsd':
-                aVal = a.liquidityUsd;
-                bVal = b.liquidityUsd;
-                break;
             case 'volumeUsd24h':
-                aVal = a.volumeUsd24h;
-                bVal = b.volumeUsd24h;
-                break;
             case 'score':
             default:
-                aVal = a.score;
-                bVal = b.score;
-                break;
+                aVal = a[sortKey] || 0;
+                bVal = b[sortKey] || 0;
+                return newOrder === 'asc' ? aVal - bVal : bVal - aVal;
         }
-
-        if (newOrder === 'asc') {
-            return aVal - bVal;
-        }
-        return bVal - aVal;
     });
 
-    renderPoolTable(currentPools);
+    // Re-render just this section
+    const tableBodyId = `${sectionId}-table-body`;
+    const noDataId = `${sectionId}-no-data`;
+    const countId = `${sectionId}-count`;
+    renderPoolsToTable(pools, tableBodyId, noDataId, countId);
 }
 
 // =================================================================
@@ -673,7 +704,7 @@ function sortTableByKey(sortKey) {
 let refreshIntervalId = null;
 
 /**
- * Main application function. Orchestrates fetching, processing, and rendering.
+ * Main application function.
  */
 async function mainApp() {
     logMessage('Starting dashboard refresh...', 'info');
@@ -684,38 +715,36 @@ async function mainApp() {
     if (refreshBtn) refreshBtn.disabled = true;
 
     try {
-        // 1. Fetch data from all sources
+        // 1. Fetch data
         const allRawPools = await fetchAllPoolData();
-
         if (allRawPools.length === 0) {
             throw new Error('All data sources failed to return pool data.');
         }
 
         updateStatusBar('Processing and normalizing data...', 'info');
 
-        // 2. Normalize the data
+        // 2. Normalize
         const normalizedPools = normalizeAllPools(allRawPools);
 
-        // 3. Filter out invalid pools
+        // 3. Filter
         const validPools = filterPools(normalizedPools);
 
-        // 4. Score and rank the pools
-        const rankedPools = scoreAndRankPools(validPools);
+        // 4. Categorize by pair type
+        const categorizedPools = categorizePools(validPools);
+        currentCategorizedPools = categorizedPools;
 
-        // Store for re-sorting
-        currentPools = rankedPools;
+        // 5. Render
+        renderAllSections(categorizedPools);
 
-        // 5. Render the final data
-        renderPoolTable(rankedPools);
-
-        updateStatusBar(`Successfully loaded ${rankedPools.length} pools.`, 'success');
+        const totalPools = Object.values(categorizedPools).reduce((sum, arr) => sum + arr.length, 0);
+        updateStatusBar(`Successfully loaded ${totalPools} pools across ${Object.keys(categorizedPools).length} categories.`, 'success');
         updateLastUpdatedTime();
 
     } catch (error) {
         console.error('Dashboard application failed:', error);
         logMessage(`An error occurred: ${error.message}`, 'error');
         updateStatusBar(`Error: ${error.message}`, 'error');
-        renderPoolTable([]);
+        renderAllSections({ 'btc-stable': [], 'eth-stable': [], 'btc-eth': [] });
     } finally {
         toggleLoader(false);
         if (refreshBtn) refreshBtn.disabled = false;
@@ -723,23 +752,19 @@ async function mainApp() {
 }
 
 /**
- * Starts the automatic refresh interval.
+ * Starts auto-refresh.
  */
 function startAutoRefresh() {
-    if (refreshIntervalId) {
-        clearInterval(refreshIntervalId);
-    }
-
+    if (refreshIntervalId) clearInterval(refreshIntervalId);
     refreshIntervalId = setInterval(() => {
         logMessage('Auto-refreshing data...', 'info');
         mainApp();
     }, CONFIG.UPDATE_INTERVAL_MS);
-
     logMessage(`Auto-refresh started (interval: ${CONFIG.UPDATE_INTERVAL_MS / 1000}s).`, 'info');
 }
 
 /**
- * Stops the automatic refresh interval.
+ * Stops auto-refresh.
  */
 function stopAutoRefresh() {
     if (refreshIntervalId) {
@@ -758,23 +783,26 @@ function clearCache() {
 }
 
 /**
- * Initializes the dashboard when DOM is ready.
+ * Initializes the dashboard.
  */
 function initializeDashboard() {
     logMessage('DOM loaded. Initializing dashboard.', 'info');
 
-    // Attach refresh button listener
+    // Refresh button
     const refreshButton = document.getElementById('refresh-btn');
     if (refreshButton) {
         refreshButton.addEventListener('click', () => {
-            logMessage('Manual refresh triggered by user.', 'info');
+            logMessage('Manual refresh triggered.', 'info');
             clearCache();
             stopAutoRefresh();
             mainApp().finally(() => startAutoRefresh());
         });
     }
 
-    // Setup table sorting
+    // Section collapse
+    setupSectionCollapse();
+
+    // Table sorting
     setupTableSorting();
 
     // Initial run
