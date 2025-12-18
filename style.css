@@ -44,6 +44,12 @@
     --liquidity-mid: #a371f7;
     --liquidity-mid-high: #79c0ff;
     --liquidity-high: #58a6ff;
+    
+    /* APR colors */
+    --apr-excellent: #3fb950;
+    --apr-good: #a371f7;
+    --apr-moderate: #d29922;
+    --apr-low: #8b949e;
 }
 
 * {
@@ -414,11 +420,30 @@ footer p {
     text-decoration: underline;
 }
 
-/* Source badge */
-.source-badge {
+/* Fee badge */
+.fee-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
     font-size: 0.75rem;
+    font-weight: 600;
+    background-color: rgba(255, 255, 255, 0.1);
     color: var(--secondary-text-color);
-    opacity: 0.8;
+}
+
+.fee-badge.fee-low {
+    background-color: rgba(63, 185, 80, 0.2);
+    color: var(--success-color);
+}
+
+.fee-badge.fee-medium {
+    background-color: rgba(210, 153, 34, 0.2);
+    color: var(--warning-color);
+}
+
+.fee-badge.fee-high {
+    background-color: rgba(248, 81, 73, 0.2);
+    color: var(--error-color);
 }
 
 /* ============================================
@@ -451,6 +476,30 @@ footer p {
 .liquidity-mid { color: #a371f7; }
 .liquidity-mid-high { color: #79c0ff; }
 .liquidity-high { color: #58a6ff; }
+
+/* ============================================
+   APR INDICATOR
+   ============================================ */
+
+.apr-value {
+    font-weight: 600;
+}
+
+.apr-excellent {
+    color: var(--apr-excellent);
+}
+
+.apr-good {
+    color: var(--apr-good);
+}
+
+.apr-moderate {
+    color: var(--apr-moderate);
+}
+
+.apr-low {
+    color: var(--apr-low);
+}
 
 /* ============================================
    NO DATA MESSAGE
