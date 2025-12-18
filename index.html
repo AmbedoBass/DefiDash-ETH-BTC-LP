@@ -24,26 +24,102 @@
         </div>
 
         <section id="dashboard-content">
-            <div id="pool-table-container">
-                <table id="pool-table">
-                    <thead>
-                        <tr>
-                            <th data-sort="name">Pool Name</th>
-                            <th data-sort="chain">Chain</th>
-                            <th data-sort="protocol">Protocol</th>
-                            <th data-sort="assets">Assets</th>
-                            <th data-sort="liquidityUsd">Liquidity (USD)</th>
-                            <th data-sort="volumeUsd24h">Volume 24h (USD)</th>
-                            <th data-sort="score">Turnover Ratio</th>
-                            <th>Source</th>
-                        </tr>
-                    </thead>
-                    <tbody id="pool-table-body">
-                        <!-- Pool rows will be inserted here by JavaScript -->
-                    </tbody>
-                </table>
-                <div id="no-data-message" class="hidden">
-                    No pool data available. Please try refreshing.
+            <!-- BTC / Stablecoin Section -->
+            <div class="pair-section" id="btc-stable-section">
+                <div class="section-header" data-section="btc-stable">
+                    <h2>
+                        <span class="collapse-icon">▼</span>
+                        BTC / Stablecoin Pools
+                        <span class="pool-count" id="btc-stable-count">(0)</span>
+                    </h2>
+                </div>
+                <div class="section-content" id="btc-stable-content">
+                    <div class="pool-table-container">
+                        <table class="pool-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="name" data-section="btc-stable">Pool Name</th>
+                                    <th data-sort="chain" data-section="btc-stable">Chain</th>
+                                    <th data-sort="protocol" data-section="btc-stable">Protocol</th>
+                                    <th data-sort="assets" data-section="btc-stable">Assets</th>
+                                    <th data-sort="liquidityUsd" data-section="btc-stable">Liquidity (USD)</th>
+                                    <th data-sort="volumeUsd24h" data-section="btc-stable">Volume 24h (USD)</th>
+                                    <th data-sort="score" data-section="btc-stable">Turnover Ratio</th>
+                                    <th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody id="btc-stable-table-body"></tbody>
+                        </table>
+                        <div class="no-data-message hidden" id="btc-stable-no-data">
+                            No BTC/Stablecoin pools found matching criteria.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ETH / Stablecoin Section -->
+            <div class="pair-section" id="eth-stable-section">
+                <div class="section-header" data-section="eth-stable">
+                    <h2>
+                        <span class="collapse-icon">▼</span>
+                        ETH / Stablecoin Pools
+                        <span class="pool-count" id="eth-stable-count">(0)</span>
+                    </h2>
+                </div>
+                <div class="section-content" id="eth-stable-content">
+                    <div class="pool-table-container">
+                        <table class="pool-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="name" data-section="eth-stable">Pool Name</th>
+                                    <th data-sort="chain" data-section="eth-stable">Chain</th>
+                                    <th data-sort="protocol" data-section="eth-stable">Protocol</th>
+                                    <th data-sort="assets" data-section="eth-stable">Assets</th>
+                                    <th data-sort="liquidityUsd" data-section="eth-stable">Liquidity (USD)</th>
+                                    <th data-sort="volumeUsd24h" data-section="eth-stable">Volume 24h (USD)</th>
+                                    <th data-sort="score" data-section="eth-stable">Turnover Ratio</th>
+                                    <th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody id="eth-stable-table-body"></tbody>
+                        </table>
+                        <div class="no-data-message hidden" id="eth-stable-no-data">
+                            No ETH/Stablecoin pools found matching criteria.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BTC / ETH Section -->
+            <div class="pair-section" id="btc-eth-section">
+                <div class="section-header" data-section="btc-eth">
+                    <h2>
+                        <span class="collapse-icon">▼</span>
+                        BTC / ETH Pools
+                        <span class="pool-count" id="btc-eth-count">(0)</span>
+                    </h2>
+                </div>
+                <div class="section-content" id="btc-eth-content">
+                    <div class="pool-table-container">
+                        <table class="pool-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="name" data-section="btc-eth">Pool Name</th>
+                                    <th data-sort="chain" data-section="btc-eth">Chain</th>
+                                    <th data-sort="protocol" data-section="btc-eth">Protocol</th>
+                                    <th data-sort="assets" data-section="btc-eth">Assets</th>
+                                    <th data-sort="liquidityUsd" data-section="btc-eth">Liquidity (USD)</th>
+                                    <th data-sort="volumeUsd24h" data-section="btc-eth">Volume 24h (USD)</th>
+                                    <th data-sort="score" data-section="btc-eth">Turnover Ratio</th>
+                                    <th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody id="btc-eth-table-body"></tbody>
+                        </table>
+                        <div class="no-data-message hidden" id="btc-eth-no-data">
+                            No BTC/ETH pools found matching criteria.
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
