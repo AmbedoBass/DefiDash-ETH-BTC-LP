@@ -1,5 +1,5 @@
 // script.js - ETH/BTC Liquidity Turnover Dashboard
-// Optimized Version with Parallel Fetching
+// Optimized Version with Parallel Fetching, Fees, and APR
 
 // =================================================================
 // UTILITY FUNCTIONS
@@ -58,6 +58,88 @@ function getLiquidityIndicator(liquidityUsd) {
     const percentage = Math.min(normalized * 100, 100);
     
     return { colorClass, percentage, hue };
+}
+
+/**
+ * Returns APR color class based on value.
+ */
+function getAprColorClass(apr) {
+    if (apr >= 50) return 'apr-excellent';
+    if (apr >= 20) return 'apr-good';
+    if (apr >= 5) return 'apr-moderate';
+    return 'apr-low';
+}
+
+/**
+ * Returns fee badge class based on fee percentage.
+ */
+function getFeeBadgeClass(feePercent) {
+    if (feePercent <= 0.05) return 'fee-low';
+    if (feePercent <= 0.3) return 'fee-medium';
+    return 'fee-high';
+}
+
+/**
+ * Calculates estimated APR based on volume, liquidity, and fee.
+ * APR = (Daily Volume * Fee Rate * 365) / Liquidity * 100
+ */
+function calculateApr(volumeUsd24h, liquidityUsd, feePercent) {
+    if (!liquidityUsd || liquidityUsd <= 0 || !feePercent) return 0;
+    const feeRate = feePercent / 100;
+    const dailyFees = volumeUsd24h * feeRate;
+    const annualFees = dailyFees * 365;
+    const apr = (annualFees / liquidityUsd) * 100;
+    return apr;
+}
+
+/**
+ * Parses fee from various formats and returns as percentage.
+ * Examples: "0.3%", "0.003", "3000" (basis points), "0.30%", etc.
+ */
+function parseFeeToPercent(feeValue) {
+    if (feeValue === null || feeValue === undefined) return null;
+    
+    // If it's already a number
+    if (typeof feeValue === 'number') {
+        // If it looks like basis points (e.g., 3000 = 0.3%)
+        if (feeValue > 100) {
+            return feeValue / 10000;
+        }
+        // If it looks like a decimal fee (e.g., 0.003 = 0.3%)
+        if (feeValue < 1) {
+            return feeValue * 100;
+        }
+        // Otherwise assume it's already a percentage
+        return feeValue;
+    }
+    
+    // If it's a string
+    if (typeof feeValue === 'string') {
+        // Remove % sign and parse
+        const cleaned = feeValue.replace('%', '').trim();
+        const parsed = parseFloat(cleaned);
+        
+        if (isNaN(parsed)) return null;
+        
+        // If original had % sign, it's already a percentage
+        if (feeValue.includes('%')) {
+            return parsed;
+        }
+        
+        // If it looks like basis points
+        if (parsed > 100) {
+            return parsed / 10000;
+        }
+        
+        // If it looks like a decimal
+        if (parsed < 1) {
+            return parsed * 100;
+        }
+        
+        return parsed;
+    }
+    
+    return null;
 }
 
 // =================================================================
@@ -153,27 +235,6 @@ async function fetchDexScreenerQuery(query) {
 }
 
 /**
- * Processes results from parallel fetches and tags them with source info.
- */
-function processParallelResults(results, source, sourceRank, getChain = null) {
-    const pools = [];
-    for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-            const { data, chain } = result.value;
-            if (Array.isArray(data)) {
-                pools.push(...data.map(p => ({
-                    ...p,
-                    _source: source,
-                    _sourceRank: sourceRank,
-                    _chain: chain || (getChain ? getChain(p) : 'unknown')
-                })));
-            }
-        }
-    }
-    return pools;
-}
-
-/**
  * Main orchestrator - fetches from all sources in parallel for speed.
  */
 async function fetchAllPoolData() {
@@ -182,7 +243,6 @@ async function fetchAllPoolData() {
 
     logMessage('Starting parallel data fetch...', 'info');
 
-    // Prepare all fetch promises
     const chainsToFetch = [...CONFIG.HIGH_CONFIDENCE_CHAINS, ...CONFIG.MEDIUM_CONFIDENCE_CHAINS];
     const tokenSearches = ['WBTC', 'cbBTC', 'WETH', 'stETH', 'wstETH', 'rETH'];
     const dexScreenerQueries = ['WBTC', 'WETH'];
@@ -316,6 +376,31 @@ function areDifferentVariants(symbol1, symbol2, assetClass) {
 }
 
 /**
+ * Extracts fee from GeckoTerminal pool data.
+ */
+function extractGeckoTerminalFee(attrs) {
+    // Try various fee field names that GeckoTerminal might use
+    if (attrs.swap_fee) return parseFeeToPercent(attrs.swap_fee);
+    if (attrs.fee) return parseFeeToPercent(attrs.fee);
+    if (attrs.pool_fee) return parseFeeToPercent(attrs.pool_fee);
+    
+    // Try to extract from pool name (e.g., "WETH/USDC 0.3%")
+    const name = attrs.name || '';
+    const feeMatch = name.match(/(\d+\.?\d*)\s*%/);
+    if (feeMatch) {
+        return parseFloat(feeMatch[1]);
+    }
+    
+    // Try to extract fee tier from name (e.g., "0.05", "0.3", "1")
+    const tierMatch = name.match(/\b(0\.01|0\.05|0\.3|0\.30|1|1\.0)\b/);
+    if (tierMatch) {
+        return parseFloat(tierMatch[1]);
+    }
+    
+    return null;
+}
+
+/**
  * Normalizes a GeckoTerminal pool object.
  */
 function normalizeGeckoTerminalPool(pool) {
@@ -349,6 +434,7 @@ function normalizeGeckoTerminalPool(pool) {
 
     const liquidityUsd = parseFloat(attrs.reserve_in_usd) || 0;
     const volumeUsd24h = parseFloat(attrs.volume_usd?.h24) || 0;
+    const feeTier = extractGeckoTerminalFee(attrs);
 
     return {
         id: pool.id || `gt-${Math.random().toString(36).substr(2, 9)}`,
@@ -358,10 +444,12 @@ function normalizeGeckoTerminalPool(pool) {
         pairType: pairType,
         liquidityUsd: liquidityUsd,
         volumeUsd24h: volumeUsd24h,
+        feeTier: feeTier,
         chain: chainName,
         source: pool._source,
         sourceRank: pool._sourceRank,
         score: null,
+        apr: null,
         poolUrl: attrs.pool_url || (pool.id ? `https://www.geckoterminal.com/${CONFIG.CHAIN_TO_GECKO_ID[chainName] || chainName}/pools/${pool.id.split('_').pop()}` : null)
     };
 }
@@ -395,6 +483,29 @@ function normalizeDexScreenerPool(pool) {
 
     const chainName = CONFIG.CHAIN_ID_MAP[(pool.chainId || '').toLowerCase()] || pool.chainId || 'unknown';
 
+    // Extract fee from DexScreener - they often have it in the labels or as feeTier
+    let feeTier = null;
+    if (pool.labels && Array.isArray(pool.labels)) {
+        for (const label of pool.labels) {
+            const feeMatch = label.match(/(\d+\.?\d*)\s*%/);
+            if (feeMatch) {
+                feeTier = parseFloat(feeMatch[1]);
+                break;
+            }
+        }
+    }
+    if (!feeTier && pool.feeTier) {
+        feeTier = parseFeeToPercent(pool.feeTier);
+    }
+    // Try to extract from pair name
+    if (!feeTier) {
+        const pairName = pool.pairName || `${baseSymbol}/${quoteSymbol}`;
+        const feeMatch = pairName.match(/(\d+\.?\d*)\s*%/);
+        if (feeMatch) {
+            feeTier = parseFloat(feeMatch[1]);
+        }
+    }
+
     return {
         id: pool.pairAddress,
         name: `${baseSymbol}/${quoteSymbol}`,
@@ -403,10 +514,12 @@ function normalizeDexScreenerPool(pool) {
         pairType: pairType,
         liquidityUsd: parseFloat(pool.liquidity?.usd) || 0,
         volumeUsd24h: parseFloat(pool.volume?.h24) || 0,
+        feeTier: feeTier,
         chain: chainName,
         source: pool._source,
         sourceRank: pool._sourceRank,
         score: null,
+        apr: null,
         poolUrl: pool.url || null
     };
 }
@@ -476,13 +589,21 @@ function calculateTurnoverScore(pool) {
 }
 
 /**
- * Scores and ranks pools by turnover ratio.
+ * Scores and ranks pools by turnover ratio, also calculates APR.
  */
 function scoreAndRankPools(pools) {
-    const scoredPools = pools.map(pool => ({
-        ...pool,
-        score: calculateTurnoverScore(pool)
-    }));
+    const scoredPools = pools.map(pool => {
+        const score = calculateTurnoverScore(pool);
+        // Use fee if available, otherwise estimate based on pool type
+        const effectiveFee = pool.feeTier || CONFIG.DEFAULT_FEE_PERCENT || 0.3;
+        const apr = calculateApr(pool.volumeUsd24h, pool.liquidityUsd, effectiveFee);
+        
+        return {
+            ...pool,
+            score: score,
+            apr: apr
+        };
+    });
 
     scoredPools.sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
@@ -535,6 +656,32 @@ function formatUsdCompact(value) {
 }
 
 /**
+ * Formats fee as percentage string.
+ */
+function formatFee(feePercent) {
+    if (feePercent === null || feePercent === undefined) {
+        return '—';
+    }
+    return feePercent.toFixed(2) + '%';
+}
+
+/**
+ * Formats APR as percentage string.
+ */
+function formatApr(apr) {
+    if (apr === null || apr === undefined || apr === 0) {
+        return '—';
+    }
+    if (apr >= 1000) {
+        return (apr / 1000).toFixed(1) + 'K%';
+    }
+    if (apr >= 100) {
+        return apr.toFixed(0) + '%';
+    }
+    return apr.toFixed(1) + '%';
+}
+
+/**
  * Renders pools into a specific table body.
  */
 function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
@@ -583,7 +730,18 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
         }
         row.appendChild(nameCell);
 
-        // Column 3: Liquidity with color indicator
+        // Column 3: Fee
+        const feeCell = document.createElement('td');
+        const feeBadge = document.createElement('span');
+        feeBadge.className = 'fee-badge';
+        if (pool.feeTier !== null && pool.feeTier !== undefined) {
+            feeBadge.classList.add(getFeeBadgeClass(pool.feeTier));
+        }
+        feeBadge.textContent = formatFee(pool.feeTier);
+        feeCell.appendChild(feeBadge);
+        row.appendChild(feeCell);
+
+        // Column 4: Liquidity with color indicator
         const liquidityCell = document.createElement('td');
         liquidityCell.className = 'liquidity-cell';
         
@@ -602,15 +760,23 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
         
         row.appendChild(liquidityCell);
 
-        // Column 4: Volume 24h
+        // Column 5: Volume 24h
         const volumeCell = document.createElement('td');
         volumeCell.textContent = formatUsdCompact(pool.volumeUsd24h);
         row.appendChild(volumeCell);
 
-        // Column 5: Turnover Ratio
+        // Column 6: Turnover Ratio
         const scoreCell = document.createElement('td');
         scoreCell.textContent = pool.score.toFixed(3);
         row.appendChild(scoreCell);
+
+        // Column 7: Estimated APR
+        const aprCell = document.createElement('td');
+        const aprSpan = document.createElement('span');
+        aprSpan.className = `apr-value ${getAprColorClass(pool.apr)}`;
+        aprSpan.textContent = formatApr(pool.apr);
+        aprCell.appendChild(aprSpan);
+        row.appendChild(aprCell);
 
         tableBody.appendChild(row);
     });
@@ -733,6 +899,14 @@ function sortSectionByKey(sectionId, sortKey, clickedHeader) {
                 aVal = (a[sortKey] || '').toLowerCase();
                 bVal = (b[sortKey] || '').toLowerCase();
                 return newOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            case 'feeTier':
+                aVal = a.feeTier || 0;
+                bVal = b.feeTier || 0;
+                return newOrder === 'asc' ? aVal - bVal : bVal - aVal;
+            case 'apr':
+                aVal = a.apr || 0;
+                bVal = b.apr || 0;
+                return newOrder === 'asc' ? aVal - bVal : bVal - aVal;
             case 'liquidityUsd':
             case 'volumeUsd24h':
             case 'score':
