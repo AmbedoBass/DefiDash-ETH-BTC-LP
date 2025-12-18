@@ -1,19 +1,43 @@
 /* style.css */
 
 :root {
-    --bg-color: #121212;
-    --surface-color: #1e1e1e;
+    /* Deep dark unsaturated blue background */
+    --bg-color: #0d1117;
+    --bg-color-lighter: #151b23;
+    --surface-color: #1c2128;
+    
     --primary-text-color: #e0e0e0;
-    --secondary-text-color: #a0a0a0;
-    --border-color: #333;
-    --accent-color: #00aaff;
-    --hover-bg-color: #2a2a2a;
-    --success-color: #4caf50;
-    --warning-color: #ff9800;
-    --error-color: #f44336;
-    --btc-color: #f7931a;
-    --eth-color: #627eea;
-    --stable-color: #2775ca;
+    --secondary-text-color: #8b949e;
+    --border-color: #30363d;
+    
+    --accent-color: #58a6ff;
+    --hover-bg-color: #262c36;
+    
+    --success-color: #3fb950;
+    --warning-color: #d29922;
+    --error-color: #f85149;
+    
+    /* Section theme colors */
+    --btc-section-color: #f7931a;
+    --btc-section-bg: rgba(247, 147, 26, 0.08);
+    --btc-section-border: rgba(247, 147, 26, 0.3);
+    
+    --eth-section-color: #627eea;
+    --eth-section-bg: rgba(98, 126, 234, 0.08);
+    --eth-section-border: rgba(98, 126, 234, 0.3);
+    
+    --btceth-section-color: #b5651d;
+    --btceth-section-bg: rgba(181, 101, 29, 0.08);
+    --btceth-section-border: rgba(181, 101, 29, 0.3);
+    
+    /* Liquidity gradient colors */
+    --liquidity-low: #f85149;
+    --liquidity-mid: #a371f7;
+    --liquidity-high: #58a6ff;
+}
+
+* {
+    box-sizing: border-box;
 }
 
 body {
@@ -22,41 +46,59 @@ body {
     color: var(--primary-text-color);
     margin: 0;
     padding: 0;
-    line-height: 1.6;
+    line-height: 1.5;
 }
 
-header, main, footer {
-    padding: 1rem 2rem;
-    max-width: 1400px;
-    margin: 0 auto;
-}
+/* ============================================
+   HEADER & FOOTER
+   ============================================ */
 
 header {
+    padding: 1.5rem 2rem;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 1.5rem;
+    background-color: var(--bg-color-lighter);
 }
 
 header h1 {
     margin: 0;
-    font-size: 2.2rem;
+    font-size: 1.8rem;
     font-weight: 600;
+    color: var(--primary-text-color);
 }
 
 header p {
     margin: 0.5rem 0 0 0;
     color: var(--secondary-text-color);
-    font-size: 1rem;
+    font-size: 0.95rem;
 }
 
 main {
-    padding-top: 2rem;
+    padding: 1.5rem;
+    max-width: 1800px;
+    margin: 0 auto;
 }
+
+footer {
+    padding: 1rem 2rem;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--secondary-text-color);
+}
+
+footer p {
+    margin: 0;
+}
+
+/* ============================================
+   CONTROLS & STATUS
+   ============================================ */
 
 #controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     flex-wrap: wrap;
     gap: 1rem;
 }
@@ -65,67 +107,58 @@ main {
     background-color: var(--accent-color);
     color: #fff;
     border: none;
-    padding: 0.7rem 1.5rem;
+    padding: 0.6rem 1.2rem;
     border-radius: 6px;
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s ease-in-out;
+    transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 #refresh-btn:hover {
-    background-color: #0088cc;
+    background-color: #4393e6;
+    transform: translateY(-1px);
 }
 
 #refresh-btn:disabled {
     background-color: var(--secondary-text-color);
     cursor: not-allowed;
+    transform: none;
 }
 
 #last-updated {
     color: var(--secondary-text-color);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 #status-bar {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
     margin-bottom: 1.5rem;
-    padding: 0.8rem 1rem;
+    padding: 0.7rem 1rem;
     background-color: var(--surface-color);
     border-radius: 6px;
-    border-left: 4px solid var(--accent-color);
-    transition: border-color 0.3s ease;
+    border-left: 3px solid var(--accent-color);
+    font-size: 0.9rem;
 }
 
-#status-bar.success {
-    border-left-color: var(--success-color);
-}
-
-#status-bar.error {
-    border-left-color: var(--error-color);
-}
-
-#status-bar.warning {
-    border-left-color: var(--warning-color);
-}
-
-#status-bar.info {
-    border-left-color: var(--accent-color);
-}
+#status-bar.success { border-left-color: var(--success-color); }
+#status-bar.error { border-left-color: var(--error-color); }
+#status-bar.warning { border-left-color: var(--warning-color); }
+#status-bar.info { border-left-color: var(--accent-color); }
 
 #status-message {
     flex-grow: 1;
 }
 
 #loading-spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--secondary-text-color);
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-color);
     border-top: 2px solid var(--accent-color);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: spin 0.8s linear infinite;
 }
 
 .hidden {
@@ -138,44 +171,55 @@ main {
 }
 
 /* ============================================
-   PAIR SECTION STYLES
+   DASHBOARD LAYOUT - 3 COLUMN GRID
+   ============================================ */
+
+#dashboard-content {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+/* ============================================
+   SECTION STYLES
    ============================================ */
 
 .pair-section {
-    margin-bottom: 2rem;
-    border: 1px solid var(--border-color);
     border-radius: 8px;
-    background-color: var(--surface-color);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+    max-height: 80vh;
 }
 
 .section-header {
     display: flex;
     align-items: center;
-    padding: 1rem 1.5rem;
-    background-color: var(--bg-color);
+    padding: 0.8rem 1rem;
     cursor: pointer;
     user-select: none;
-    transition: background-color 0.2s ease;
+    transition: filter 0.2s ease;
 }
 
 .section-header:hover {
-    background-color: var(--hover-bg-color);
+    filter: brightness(1.1);
 }
 
 .section-header h2 {
     margin: 0;
-    font-size: 1.3rem;
+    font-size: 1rem;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .collapse-icon {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
     transition: transform 0.2s ease;
-    color: var(--secondary-text-color);
+    opacity: 0.7;
 }
 
 .pair-section.collapsed .collapse-icon {
@@ -187,26 +231,73 @@ main {
 }
 
 .pool-count {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 400;
-    color: var(--secondary-text-color);
-}
-
-/* Section accent colors */
-#btc-stable-section .section-header {
-    border-left: 4px solid var(--btc-color);
-}
-
-#eth-stable-section .section-header {
-    border-left: 4px solid var(--eth-color);
-}
-
-#btc-eth-section .section-header {
-    border-left: 4px solid var(--warning-color);
+    opacity: 0.7;
 }
 
 .section-content {
-    padding: 0;
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* BTC/Stable Section - Orange */
+#btc-stable-section {
+    background-color: var(--btc-section-bg);
+    border: 1px solid var(--btc-section-border);
+}
+
+#btc-stable-section .section-header {
+    background-color: rgba(247, 147, 26, 0.15);
+    border-bottom: 1px solid var(--btc-section-border);
+}
+
+#btc-stable-section .section-header h2 {
+    color: var(--btc-section-color);
+}
+
+#btc-stable-section .pool-table th {
+    background-color: rgba(247, 147, 26, 0.1);
+}
+
+/* ETH/Stable Section - Blue */
+#eth-stable-section {
+    background-color: var(--eth-section-bg);
+    border: 1px solid var(--eth-section-border);
+}
+
+#eth-stable-section .section-header {
+    background-color: rgba(98, 126, 234, 0.15);
+    border-bottom: 1px solid var(--eth-section-border);
+}
+
+#eth-stable-section .section-header h2 {
+    color: var(--eth-section-color);
+}
+
+#eth-stable-section .pool-table th {
+    background-color: rgba(98, 126, 234, 0.1);
+}
+
+/* BTC/ETH Section - Dark Orange Brown */
+#btc-eth-section {
+    background-color: var(--btceth-section-bg);
+    border: 1px solid var(--btceth-section-border);
+}
+
+#btc-eth-section .section-header {
+    background-color: rgba(181, 101, 29, 0.15);
+    border-bottom: 1px solid var(--btceth-section-border);
+}
+
+#btc-eth-section .section-header h2 {
+    color: var(--btceth-section-color);
+}
+
+#btc-eth-section .pool-table th {
+    background-color: rgba(181, 101, 29, 0.1);
 }
 
 /* ============================================
@@ -214,41 +305,46 @@ main {
    ============================================ */
 
 .pool-table-container {
+    flex: 1;
+    overflow-y: auto;
     overflow-x: auto;
 }
 
 .pool-table {
     width: 100%;
     border-collapse: collapse;
+    font-size: 0.82rem;
 }
 
 .pool-table th,
 .pool-table td {
-    padding: 0.9rem 1rem;
+    padding: 0.55rem 0.6rem;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
 }
 
 .pool-table th {
     font-weight: 600;
-    background-color: var(--bg-color);
     position: sticky;
     top: 0;
     z-index: 10;
     cursor: pointer;
     user-select: none;
-    transition: background-color 0.2s ease;
-    white-space: nowrap;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--secondary-text-color);
 }
 
 .pool-table th:hover {
-    background-color: var(--hover-bg-color);
+    color: var(--primary-text-color);
 }
 
 .pool-table th[data-sort]::after {
     content: ' ⇅';
     opacity: 0.4;
-    font-size: 0.8em;
+    font-size: 0.7em;
 }
 
 .pool-table th.sort-asc::after {
@@ -261,59 +357,66 @@ main {
     opacity: 1;
 }
 
-.pool-table tbody tr:last-child td {
-    border-bottom: none;
+.pool-table tbody tr {
+    transition: background-color 0.15s ease;
 }
 
 .pool-table tbody tr:hover {
     background-color: var(--hover-bg-color);
 }
 
-.pool-name-cell {
-    font-weight: 500;
+.pool-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
+/* Pool name link */
 .pool-link {
     color: var(--accent-color);
     text-decoration: none;
+    font-weight: 500;
 }
 
 .pool-link:hover {
     text-decoration: underline;
 }
 
+/* Source badge */
+.source-badge {
+    font-size: 0.75rem;
+    color: var(--secondary-text-color);
+    opacity: 0.8;
+}
+
 /* ============================================
-   ASSET BADGES
+   LIQUIDITY DEPTH INDICATOR
    ============================================ */
 
-.asset-badge {
-    display: inline-block;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    margin-right: 0.3rem;
+.liquidity-cell {
+    position: relative;
+    font-weight: 500;
 }
 
-.asset-badge.btc {
-    background-color: var(--btc-color);
-    color: #000;
+.liquidity-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    opacity: 0.15;
+    border-radius: 2px;
+    z-index: 0;
 }
 
-.asset-badge.eth {
-    background-color: var(--eth-color);
-    color: #fff;
+.liquidity-value {
+    position: relative;
+    z-index: 1;
 }
 
-.asset-badge.stable {
-    background-color: var(--stable-color);
-    color: #fff;
-}
-
-.source-badge {
-    font-size: 0.8rem;
-    color: var(--secondary-text-color);
-}
+/* Liquidity color classes - gradient from red (low) to blue (high) */
+.liquidity-low { color: #f85149; }
+.liquidity-mid-low { color: #db6d28; }
+.liquidity-mid { color: #a371f7; }
+.liquidity-mid-high { color: #79c0ff; }
+.liquidity-high { color: #58a6ff; }
 
 /* ============================================
    NO DATA MESSAGE
@@ -323,35 +426,60 @@ main {
     text-align: center;
     padding: 2rem 1rem;
     color: var(--secondary-text-color);
+    font-size: 0.85rem;
 }
 
 /* ============================================
-   FOOTER
+   SCROLLBAR STYLING
    ============================================ */
 
-footer {
-    margin-top: 3rem;
-    border-top: 1px solid var(--border-color);
-    padding-top: 1.5rem;
-    font-size: 0.9rem;
-    color: var(--secondary-text-color);
+.pool-table-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
 }
 
-footer p {
-    margin: 0.25rem 0;
+.pool-table-container::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+
+.pool-table-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.pool-table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--secondary-text-color);
 }
 
 /* ============================================
-   MOBILE RESPONSIVENESS
+   RESPONSIVE - TABLET
+   ============================================ */
+
+@media (max-width: 1200px) {
+    #dashboard-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .pair-section {
+        max-height: 500px;
+    }
+}
+
+/* ============================================
+   RESPONSIVE - MOBILE
    ============================================ */
 
 @media (max-width: 768px) {
-    header, main, footer {
+    header {
         padding: 1rem;
     }
-
+    
     header h1 {
-        font-size: 1.8rem;
+        font-size: 1.4rem;
+    }
+    
+    main {
+        padding: 1rem;
     }
 
     #controls {
@@ -362,19 +490,14 @@ footer p {
     #refresh-btn {
         text-align: center;
     }
-
-    .section-header h2 {
-        font-size: 1.1rem;
+    
+    .pair-section {
+        min-height: 300px;
     }
 
     .pool-table th,
     .pool-table td {
-        padding: 0.6rem 0.8rem;
-        font-size: 0.9rem;
-    }
-
-    .asset-badge,
-    .source-badge {
+        padding: 0.4rem 0.5rem;
         font-size: 0.75rem;
     }
 }
