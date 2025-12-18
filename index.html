@@ -24,6 +24,8 @@
         </div>
 
         <section id="dashboard-content">
+            <!-- Row 1: Stablecoin Pairs -->
+            
             <!-- BTC / Stablecoin Section -->
             <div class="pair-section" id="btc-stable-section">
                 <div class="section-header" data-section="btc-stable">
@@ -38,13 +40,11 @@
                         <table class="pool-table">
                             <thead>
                                 <tr>
-                                    <th data-sort="name" data-section="btc-stable">Pool</th>
                                     <th data-sort="chain" data-section="btc-stable">Chain</th>
-                                    <th data-sort="protocol" data-section="btc-stable">Protocol</th>
+                                    <th data-sort="name" data-section="btc-stable">Pool</th>
                                     <th data-sort="liquidityUsd" data-section="btc-stable">Liquidity</th>
-                                    <th data-sort="volumeUsd24h" data-section="btc-stable">Vol 24h</th>
+                                    <th data-sort="volumeUsd24h" data-section="btc-stable">Volume</th>
                                     <th data-sort="score" data-section="btc-stable">Turnover</th>
-                                    <th>Source</th>
                                 </tr>
                             </thead>
                             <tbody id="btc-stable-table-body"></tbody>
@@ -70,13 +70,11 @@
                         <table class="pool-table">
                             <thead>
                                 <tr>
-                                    <th data-sort="name" data-section="eth-stable">Pool</th>
                                     <th data-sort="chain" data-section="eth-stable">Chain</th>
-                                    <th data-sort="protocol" data-section="eth-stable">Protocol</th>
+                                    <th data-sort="name" data-section="eth-stable">Pool</th>
                                     <th data-sort="liquidityUsd" data-section="eth-stable">Liquidity</th>
-                                    <th data-sort="volumeUsd24h" data-section="eth-stable">Vol 24h</th>
+                                    <th data-sort="volumeUsd24h" data-section="eth-stable">Volume</th>
                                     <th data-sort="score" data-section="eth-stable">Turnover</th>
-                                    <th>Source</th>
                                 </tr>
                             </thead>
                             <tbody id="eth-stable-table-body"></tbody>
@@ -87,6 +85,8 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Row 2: Cross-Asset Pairs -->
 
             <!-- BTC / ETH Section -->
             <div class="pair-section" id="btc-eth-section">
@@ -102,19 +102,47 @@
                         <table class="pool-table">
                             <thead>
                                 <tr>
-                                    <th data-sort="name" data-section="btc-eth">Pool</th>
                                     <th data-sort="chain" data-section="btc-eth">Chain</th>
-                                    <th data-sort="protocol" data-section="btc-eth">Protocol</th>
+                                    <th data-sort="name" data-section="btc-eth">Pool</th>
                                     <th data-sort="liquidityUsd" data-section="btc-eth">Liquidity</th>
-                                    <th data-sort="volumeUsd24h" data-section="btc-eth">Vol 24h</th>
+                                    <th data-sort="volumeUsd24h" data-section="btc-eth">Volume</th>
                                     <th data-sort="score" data-section="btc-eth">Turnover</th>
-                                    <th>Source</th>
                                 </tr>
                             </thead>
                             <tbody id="btc-eth-table-body"></tbody>
                         </table>
                         <div class="no-data-message hidden" id="btc-eth-no-data">
                             No BTC/ETH pools found.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wrapped Assets Section (BTC/BTC and ETH/ETH variants) -->
+            <div class="pair-section" id="wrapped-section">
+                <div class="section-header" data-section="wrapped">
+                    <h2>
+                        <span class="collapse-icon">▼</span>
+                        Wrapped Assets
+                        <span class="pool-count" id="wrapped-count">(0)</span>
+                    </h2>
+                </div>
+                <div class="section-content" id="wrapped-content">
+                    <div class="pool-table-container">
+                        <table class="pool-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="chain" data-section="wrapped">Chain</th>
+                                    <th data-sort="name" data-section="wrapped">Pool</th>
+                                    <th data-sort="liquidityUsd" data-section="wrapped">Liquidity</th>
+                                    <th data-sort="volumeUsd24h" data-section="wrapped">Volume</th>
+                                    <th data-sort="score" data-section="wrapped">Turnover</th>
+                                </tr>
+                            </thead>
+                            <tbody id="wrapped-table-body"></tbody>
+                        </table>
+                        <div class="no-data-message hidden" id="wrapped-no-data">
+                            No wrapped asset pools found.
                         </div>
                     </div>
                 </div>
