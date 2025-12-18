@@ -366,7 +366,6 @@ function normalizeGeckoTerminalPool(pool) {
         liquidityUsd: liquidityUsd,
         volumeUsd24h: volumeUsd24h,
         chain: chainName,
-        protocol: attrs.dex?.identifier || attrs.dex_id || 'unknown',
         source: pool._source,
         sourceRank: pool._sourceRank,
         score: null,
@@ -412,7 +411,6 @@ function normalizeDexScreenerPool(pool) {
         liquidityUsd: parseFloat(pool.liquidity?.usd) || 0,
         volumeUsd24h: parseFloat(pool.volume?.h24) || 0,
         chain: chainName,
-        protocol: pool.dexId || 'unknown',
         source: pool._source,
         sourceRank: pool._sourceRank,
         score: null,
@@ -545,6 +543,7 @@ function formatUsdCompact(value) {
 
 /**
  * Renders pools into a specific table body.
+ * Column order: Chain, Pool, Liquidity, Volume, Turnover
  */
 function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
     const tableBody = document.getElementById(tableBodyId);
@@ -556,12 +555,15 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
         return;
     }
 
+    // Clear existing rows
     tableBody.innerHTML = '';
 
+    // Update count
     if (countElement) {
         countElement.textContent = `(${pools.length})`;
     }
 
+    // Show no data message if empty
     if (!pools || pools.length === 0) {
         if (noDataMessage) noDataMessage.classList.remove('hidden');
         return;
@@ -569,15 +571,16 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
 
     if (noDataMessage) noDataMessage.classList.add('hidden');
 
+    // Render each pool row
     pools.forEach(pool => {
         const row = document.createElement('tr');
 
-        // Chain
+        // Column 1: Chain
         const chainCell = document.createElement('td');
-        chainCell.textContent = pool.chain;
+        chainCell.textContent = pool.chain || 'unknown';
         row.appendChild(chainCell);
 
-        // Pool Name & Link
+        // Column 2: Pool Name & Link
         const nameCell = document.createElement('td');
         if (pool.poolUrl) {
             const link = document.createElement('a');
@@ -592,7 +595,7 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
         }
         row.appendChild(nameCell);
 
-        // Liquidity with color indicator
+        // Column 3: Liquidity with color indicator
         const liquidityCell = document.createElement('td');
         liquidityCell.className = 'liquidity-cell';
         
@@ -611,12 +614,12 @@ function renderPoolsToTable(pools, tableBodyId, noDataId, countId) {
         
         row.appendChild(liquidityCell);
 
-        // Volume 24h
+        // Column 4: Volume 24h
         const volumeCell = document.createElement('td');
         volumeCell.textContent = formatUsdCompact(pool.volumeUsd24h);
         row.appendChild(volumeCell);
 
-        // Turnover Ratio
+        // Column 5: Turnover Ratio
         const scoreCell = document.createElement('td');
         scoreCell.textContent = pool.score.toFixed(3);
         row.appendChild(scoreCell);
@@ -707,7 +710,8 @@ function setupSectionCollapse() {
 function setupTableSorting() {
     const headers = document.querySelectorAll('.pool-table th[data-sort]');
     headers.forEach(header => {
-        header.addEventListener('click', () => {
+        header.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent section collapse
             const sortKey = header.dataset.sort;
             const sectionId = header.dataset.section;
             sortSectionByKey(sectionId, sortKey, header);
@@ -728,11 +732,14 @@ function sortSectionByKey(sectionId, sortKey, clickedHeader) {
     const isCurrentlyDesc = clickedHeader.classList.contains('sort-desc');
     const newOrder = isCurrentlyDesc ? 'asc' : 'desc';
 
+    // Clear sort indicators for this section
     const sectionHeaders = document.querySelectorAll(`th[data-section="${sectionId}"]`);
     sectionHeaders.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
 
+    // Set new sort indicator
     clickedHeader.classList.add(newOrder === 'asc' ? 'sort-asc' : 'sort-desc');
 
+    // Sort the pools
     pools.sort((a, b) => {
         let aVal, bVal;
 
@@ -752,6 +759,7 @@ function sortSectionByKey(sectionId, sortKey, clickedHeader) {
         }
     });
 
+    // Re-render the section
     const tableBodyId = `${sectionId}-table-body`;
     const noDataId = `${sectionId}-no-data`;
     const countId = `${sectionId}-count`;
